@@ -1,0 +1,58 @@
+{
+  "Level1": {
+    "best_moves": 1,
+    "attempts": 1
+  },
+  "Level2": {
+    "best_moves": 3,
+    "attempts": 1
+  },
+  "Level3": {
+    "best_moves": 5,
+    "attempts": 1
+  },
+  "Level4": {
+    "best_moves": 3,
+    "attempts": 1
+  },
+  "Level5": {
+    "best_moves": 11,
+    "attempts": 1
+  },
+  "Level6": {
+    "best_moves": 7,
+    "attempts": 1
+  },
+  "Level7": {
+    "best_moves": 34,
+    "attempts": 1
+  },
+  "Level8": {
+    "best_moves": 5,
+    "attempts": 1
+  },
+  "Level9": {
+    "best_moves": 11,
+    "attempts": 1
+  },
+  "Level10": {
+    "best_moves": 21,
+    "attempts": 1
+  },
+  "Level11": {
+    "best_moves": 15,
+    "attempts": 1
+  },
+  "Level12": {
+    "best_moves": 52,
+    "attempts": 1
+  },
+  "Level13": {
+    "best_moves": 15,
+    "attempts": 1
+  },
+  "Level14": {
+    "best_moves": 35,
+    "attempts": 1
+  }
+}

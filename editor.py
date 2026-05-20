@@ -1,143 +1,245 @@
 import pygame
 import os
+import subprocess
+import sys
 
-TILE_SIZE = 50
-EDITOR_WIDTH = 900
-TOOLBAR_WIDTH = 300
-SCREEN_WIDTH = 1200
-SCREEN_HEIGHT = 700
+# Константы
+TILE_SIZE = 30
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
 
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-GRAY = (128, 128, 128)
-DARK_GRAY = (64, 64, 64)
-BROWN = (139, 69, 19)
-BLUE = (0, 0, 255)
-RED = (255, 0, 0)
-GREEN = (0, 255, 0)
-YELLOW = (255, 255, 0)
-LIGHT_BLUE = (173, 216, 230)
-ORANGE = (255, 165, 0)
+# Цвета
+WHITE = (255, 250, 240)
+BLACK = (45, 45, 65)
+GRAY = (200, 190, 190)
+DARK_GRAY = (150, 140, 150)
+BROWN = (180, 140, 110)
+BLUE = (180, 160, 210)
+RED = (210, 130, 140)
+GREEN = (140, 200, 160)
+YELLOW = (240, 210, 140)
+PINK = (245, 220, 230)
+LIGHT_BLUE = (200, 220, 240)
+ORANGE = (255, 200, 150)
 
-WALL = '#'
-FLOOR = ' '
-PLAYER = '@'
-BOX = '$'
-GOAL = '.'
-BOX_ON_GOAL = '*'
-PLAYER_ON_GOAL = '+'
+TOOLS = [
+    {'key': '1', 'name': 'Стена', 'char': '#', 'color': DARK_GRAY},
+    {'key': '2', 'name': 'Пол', 'char': ' ', 'color': WHITE},
+    {'key': '3', 'name': 'Игрок', 'char': '@', 'color': BLUE},
+    {'key': '4', 'name': 'Ящик', 'char': '$', 'color': BROWN},
+    {'key': '5', 'name': 'Цель', 'char': '.', 'color': RED},
+    {'key': '6', 'name': 'Ластик', 'char': ' ', 'color': GRAY},
+]
 
 
 class LevelEditor:
     def __init__(self, screen):
         self.screen = screen
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.Font(None, 24)
-        self.big_font = pygame.font.Font(None, 36)
+        self.font = pygame.font.Font(None, 20)
+        self.small_font = pygame.font.Font(None, 16)
+        self.title_font = pygame.font.Font(None, 24)
 
-        self.tools = [
-            {'key': '1', 'name': 'Стена', 'char': WALL, 'color': DARK_GRAY},
-            {'key': '2', 'name': 'Пол', 'char': FLOOR, 'color': WHITE},
-            {'key': '3', 'name': 'Игрок', 'char': PLAYER, 'color': BLUE},
-            {'key': '4', 'name': 'Ящик', 'char': BOX, 'color': BROWN},
-            {'key': '5', 'name': 'Цель', 'char': GOAL, 'color': RED},
-            {'key': '6', 'name': 'Ящик на цели', 'char': BOX_ON_GOAL, 'color': GREEN},
-            {'key': '7', 'name': 'Игрок на цели', 'char': PLAYER_ON_GOAL, 'color': ORANGE},
-        ]
-        self.current_tool = 0
-
-        self.map_width = 20
-        self.map_height = 15
+        self.current_tool = 1
+        self.map_width = 12
+        self.map_height = 10
         self.level = [[' ' for _ in range(self.map_width)] for _ in range(self.map_height)]
 
-        self.show_save_dialog = False
-        self.show_load_dialog = False
-        self.filename_input = ""
+        self.saved_levels = []
+        self.selected_level_index = -1
+        self.show_name_input = False
+        self.name_input_text = ""
         self.status_message = ""
         self.status_timer = 0
 
-    def get_filename_input(self):
-        """Ввод имени файла в pygame-окне"""
-        dialog_rect = pygame.Rect(SCREEN_WIDTH // 2 - 200, SCREEN_HEIGHT // 2 - 100, 400, 200)
+        self.load_saved_levels_list()
+        self.update_stats()
+
+    def load_saved_levels_list(self):
+        self.saved_levels = []
+        if os.path.exists("levels"):
+            for f in os.listdir("levels"):
+                if f.endswith(".txt") and not f.startswith("level"):
+                    self.saved_levels.append(f)
+        self.saved_levels.sort()
+
+    def update_stats(self):
+        self.box_count = sum(row.count('$') + row.count('*') for row in self.level)
+        self.goal_count = sum(row.count('.') + row.count('*') + row.count('+') for row in self.level)
+        self.player_count = sum(row.count('@') + row.count('+') for row in self.level)
+        self.is_valid = (self.box_count == self.goal_count and self.player_count == 1)
+
+    def draw_tile(self, x, y, char):
+        rect = pygame.Rect(x * TILE_SIZE + 5, y * TILE_SIZE + 40, TILE_SIZE, TILE_SIZE)
+
+        if char == '#':
+            pygame.draw.rect(self.screen, DARK_GRAY, rect)
+            pygame.draw.rect(self.screen, BLACK, rect, 1)
+        elif char == ' ':
+            pygame.draw.rect(self.screen, WHITE, rect)
+            pygame.draw.rect(self.screen, GRAY, rect, 1)
+        elif char == '@':
+            pygame.draw.rect(self.screen, WHITE, rect)
+            pygame.draw.rect(self.screen, GRAY, rect, 1)
+            pygame.draw.circle(self.screen, BLUE, rect.center, TILE_SIZE // 3)
+        elif char == '$':
+            pygame.draw.rect(self.screen, BROWN, rect)
+            pygame.draw.rect(self.screen, BLACK, rect, 1)
+        elif char == '.':
+            pygame.draw.rect(self.screen, WHITE, rect)
+            pygame.draw.rect(self.screen, GRAY, rect, 1)
+            pygame.draw.circle(self.screen, RED, rect.center, TILE_SIZE // 4)
+        elif char == '*':
+            pygame.draw.rect(self.screen, BROWN, rect)
+            pygame.draw.rect(self.screen, BLACK, rect, 1)
+            pygame.draw.circle(self.screen, GREEN, rect.center, TILE_SIZE // 4)
+        else:
+            pygame.draw.rect(self.screen, WHITE, rect)
+            pygame.draw.rect(self.screen, GRAY, rect, 1)
+
+    def draw(self):
+        self.screen.fill(WHITE)
+
+        title = self.title_font.render("РЕДАКТОР УРОВНЕЙ", True, BLUE)
+        self.screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 5))
+
+        for y in range(self.map_height):
+            for x in range(self.map_width):
+                self.draw_tile(x, y, self.level[y][x])
+
+        panel_x = self.map_width * TILE_SIZE + 10
+        panel_w = SCREEN_WIDTH - panel_x - 5
+
+        pygame.draw.rect(self.screen, LIGHT_BLUE, (panel_x, 40, panel_w, SCREEN_HEIGHT - 45))
+        pygame.draw.rect(self.screen, BLACK, (panel_x, 40, panel_w, SCREEN_HEIGHT - 45), 1)
+
+        y_offset = 50
+        for i, tool in enumerate(TOOLS):
+            btn_rect = pygame.Rect(panel_x + 5, y_offset, panel_w - 10, 28)
+            if i == self.current_tool:
+                pygame.draw.rect(self.screen, PINK, btn_rect)
+            pygame.draw.rect(self.screen, BLACK, btn_rect, 1)
+
+            key_text = self.small_font.render(f"[{tool['key']}]", True, BLACK)
+            self.screen.blit(key_text, (panel_x + 8, y_offset + 6))
+
+            name_text = self.small_font.render(tool['name'], True, BLACK)
+            self.screen.blit(name_text, (panel_x + 50, y_offset + 6))
+
+            y_offset += 32
+
+        y_offset += 5
+        stat_title = self.small_font.render("ПРОВЕРКА", True, BLACK)
+        self.screen.blit(stat_title, (panel_x + panel_w // 2 - stat_title.get_width() // 2, y_offset))
+        y_offset += 18
+
+        stats = [f"Ящики: {self.box_count}", f"Цели: {self.goal_count}", f"Игроки: {self.player_count}"]
+        for s in stats:
+            text = self.small_font.render(s, True, BLACK)
+            self.screen.blit(text, (panel_x + 8, y_offset))
+            y_offset += 16
+
+        y_offset += 5
+        if self.is_valid:
+            valid_text = self.small_font.render("ГОТОВО!", True, GREEN)
+        else:
+            valid_text = self.small_font.render("НЕВЕРНО!", True, RED)
+        self.screen.blit(valid_text, (panel_x + 8, y_offset))
+
+        y_offset += 25
+        buttons = [
+            {"name": "НОВЫЙ", "y": y_offset, "color": GREEN, "action": "new"},
+            {"name": "СОХР", "y": y_offset + 30, "color": BLUE, "action": "save"},
+            {"name": "ЗАГР", "y": y_offset + 60, "color": ORANGE, "action": "load"},
+            {"name": "НАЗАД", "y": y_offset + 90, "color": RED, "action": "back"},
+        ]
+
+        self.button_rects = {}
+        for btn in buttons:
+            btn_rect = pygame.Rect(panel_x + 5, btn["y"], panel_w - 10, 28)
+            pygame.draw.rect(self.screen, btn["color"], btn_rect)
+            pygame.draw.rect(self.screen, BLACK, btn_rect, 1)
+            text = self.small_font.render(btn["name"], True, BLACK)
+            self.screen.blit(text, (btn_rect.centerx - text.get_width() // 2, btn_rect.centery - 7))
+            self.button_rects[btn["action"]] = btn_rect
+
+        if self.saved_levels:
+            y_offset += 130
+            list_title = self.small_font.render("МОИ УРОВНИ:", True, BLACK)
+            self.screen.blit(list_title, (panel_x + 8, y_offset))
+            y_offset += 18
+
+            for i, level_file in enumerate(self.saved_levels[:5]):
+                level_rect = pygame.Rect(panel_x + 5, y_offset, panel_w - 10, 22)
+                if i == self.selected_level_index:
+                    pygame.draw.rect(self.screen, YELLOW, level_rect)
+                pygame.draw.rect(self.screen, BLACK, level_rect, 1)
+                name_text = self.small_font.render(level_file.replace(".txt", "")[:15], True, BLACK)
+                self.screen.blit(name_text, (panel_x + 10, y_offset + 4))
+                y_offset += 24
+                self.button_rects[f"level_{i}"] = level_rect
+
+        if self.status_message and self.status_timer > 0:
+            status_surface = self.small_font.render(self.status_message, True,
+                                                    GREEN if "сохранён" in self.status_message else RED)
+            self.screen.blit(status_surface, (panel_x + 5, SCREEN_HEIGHT - 22))
+            self.status_timer -= 1
+
+    def draw_name_dialog(self):
+        """Рисует диалог ввода имени и возвращает кнопки"""
+        dialog_rect = pygame.Rect(SCREEN_WIDTH // 2 - 150, SCREEN_HEIGHT // 2 - 70, 300, 140)
         pygame.draw.rect(self.screen, WHITE, dialog_rect)
-        pygame.draw.rect(self.screen, BLACK, dialog_rect, 3)
+        pygame.draw.rect(self.screen, BLACK, dialog_rect, 2)
 
-        label = self.font.render("Введите имя файла:", True, BLACK)
-        self.screen.blit(label, (dialog_rect.x + 20, dialog_rect.y + 30))
+        label = self.small_font.render("Имя уровня:", True, BLACK)
+        self.screen.blit(label, (dialog_rect.x + 15, dialog_rect.y + 15))
 
-        # Поле ввода
-        input_rect = pygame.Rect(dialog_rect.x + 20, dialog_rect.y + 70, 360, 40)
+        input_rect = pygame.Rect(dialog_rect.x + 15, dialog_rect.y + 45, 270, 30)
         pygame.draw.rect(self.screen, GRAY, input_rect)
-        pygame.draw.rect(self.screen, BLACK, input_rect, 2)
+        pygame.draw.rect(self.screen, BLACK, input_rect, 1)
 
-        text = self.font.render(self.filename_input + "█", True, BLACK)
-        self.screen.blit(text, (input_rect.x + 10, input_rect.y + 10))
+        text = self.small_font.render(self.name_input_text + "|", True, BLACK)
+        self.screen.blit(text, (input_rect.x + 5, input_rect.y + 6))
 
-        # Кнопки
-        save_btn = pygame.Rect(dialog_rect.x + 50, dialog_rect.y + 130, 120, 40)
-        cancel_btn = pygame.Rect(dialog_rect.x + 230, dialog_rect.y + 130, 120, 40)
-
-        pygame.draw.rect(self.screen, GREEN, save_btn)
+        ok_btn = pygame.Rect(dialog_rect.x + 60, dialog_rect.y + 95, 70, 30)
+        cancel_btn = pygame.Rect(dialog_rect.x + 170, dialog_rect.y + 95, 70, 30)
+        pygame.draw.rect(self.screen, GREEN, ok_btn)
         pygame.draw.rect(self.screen, RED, cancel_btn)
-        pygame.draw.rect(self.screen, BLACK, save_btn, 2)
-        pygame.draw.rect(self.screen, BLACK, cancel_btn, 2)
+        pygame.draw.rect(self.screen, BLACK, ok_btn, 1)
+        pygame.draw.rect(self.screen, BLACK, cancel_btn, 1)
 
-        save_text = self.font.render("СОХРАНИТЬ", True, BLACK)
-        cancel_text = self.font.render("ОТМЕНА", True, BLACK)
+        self.screen.blit(self.small_font.render("OK", True, BLACK), (ok_btn.x + 25, ok_btn.y + 8))
+        self.screen.blit(self.small_font.render("НЕТ", True, BLACK), (cancel_btn.x + 22, cancel_btn.y + 8))
 
-        self.screen.blit(save_text, (save_btn.x + 20, save_btn.y + 10))
-        self.screen.blit(cancel_text, (cancel_btn.x + 30, cancel_btn.y + 10))
+        return ok_btn, cancel_btn
 
-        return save_btn, cancel_btn
-
-    def save_level(self):
-        """Сохраняет уровень в файл"""
-        if not self.filename_input:
-            self.status_message = "Имя файла не может быть пустым"
+    def save_level(self, name):
+        if not self.is_valid:
+            self.status_message = "Уровень невалиден!"
             self.status_timer = 60
             return False
 
         if not os.path.exists("levels"):
             os.makedirs("levels")
 
-        filename = self.filename_input
-        if not filename.endswith(".txt"):
-            filename += ".txt"
-
-        # Убираем пустые строки и колонки
-        while self.map_height > 0 and all(cell == ' ' for cell in self.level[-1]):
-            self.level.pop()
-            self.map_height -= 1
-
-        while self.map_width > 0 and all(self.level[y][self.map_width - 1] == ' ' for y in range(self.map_height)):
-            for y in range(self.map_height):
-                self.level[y].pop()
-            self.map_width -= 1
-
+        filename = name if name.endswith(".txt") else name + ".txt"
         filepath = os.path.join("levels", filename)
+
         with open(filepath, "w") as f:
             for y in range(self.map_height):
-                line = ''.join(self.level[y][:self.map_width])
-                f.write(line.rstrip() + "\n")
+                row = ''.join(self.level[y]).rstrip()
+                if row:
+                    f.write(row + "\n")
 
-        self.status_message = f"Сохранено: {filename}"
+        self.status_message = f"Сохранён: {filename}"
         self.status_timer = 60
+        self.load_saved_levels_list()
         return True
 
-    def load_level(self):
-        """Загружает уровень из файла"""
-        if not self.filename_input:
-            self.status_message = "Введите имя файла"
-            self.status_timer = 60
-            return False
-
-        filename = self.filename_input
-        if not filename.endswith(".txt"):
-            filename += ".txt"
-
+    def load_level(self, filename):
         filepath = os.path.join("levels", filename)
         if not os.path.exists(filepath):
-            self.status_message = f"Файл не найден: {filename}"
+            self.status_message = "Файл не найден!"
             self.status_timer = 60
             return False
 
@@ -145,7 +247,7 @@ class LevelEditor:
             lines = [line.rstrip('\n') for line in f.readlines()]
 
         self.map_height = len(lines)
-        self.map_width = max(len(line) for line in lines) if lines else 20
+        self.map_width = max(len(line) for line in lines) if lines else 12
         self.level = [[' ' for _ in range(self.map_width)] for _ in range(self.map_height)]
 
         for y, line in enumerate(lines):
@@ -153,179 +255,65 @@ class LevelEditor:
                 if x < self.map_width:
                     self.level[y][x] = char
 
-        self.status_message = f"Загружено: {filename}"
+        self.update_stats()
+        self.status_message = f"Загружен: {filename}"
         self.status_timer = 60
         return True
 
-    def draw(self):
-        self.screen.fill(WHITE)
-
-        for y in range(self.map_height):
-            for x in range(self.map_width):
-                rect = pygame.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-                char = self.level[y][x]
-
-                if char == WALL:
-                    pygame.draw.rect(self.screen, DARK_GRAY, rect)
-                    pygame.draw.rect(self.screen, BLACK, rect, 2)
-                elif char == FLOOR or char == ' ':
-                    pygame.draw.rect(self.screen, WHITE, rect)
-                    pygame.draw.rect(self.screen, GRAY, rect, 1)
-                elif char == PLAYER:
-                    pygame.draw.rect(self.screen, WHITE, rect)
-                    pygame.draw.circle(self.screen, BLUE, rect.center, TILE_SIZE // 3)
-                elif char == BOX:
-                    pygame.draw.rect(self.screen, BROWN, rect)
-                    pygame.draw.rect(self.screen, BLACK, rect, 2)
-                elif char == GOAL:
-                    pygame.draw.rect(self.screen, WHITE, rect)
-                    pygame.draw.circle(self.screen, RED, rect.center, TILE_SIZE // 4)
-                elif char == BOX_ON_GOAL:
-                    pygame.draw.rect(self.screen, BROWN, rect)
-                    pygame.draw.circle(self.screen, GREEN, rect.center, TILE_SIZE // 4)
-                elif char == PLAYER_ON_GOAL:
-                    pygame.draw.rect(self.screen, WHITE, rect)
-                    pygame.draw.circle(self.screen, BLUE, rect.center, TILE_SIZE // 3)
-                    pygame.draw.circle(self.screen, RED, rect.center, TILE_SIZE // 4)
-                else:
-                    pygame.draw.rect(self.screen, WHITE, rect)
-                    pygame.draw.rect(self.screen, GRAY, rect, 1)
-
-        # Сетка
-        for x in range(self.map_width):
-            for y in range(self.map_height):
-                rect = pygame.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-                pygame.draw.rect(self.screen, GRAY, rect, 1)
-
-        # Тулбар
-        toolbar_rect = pygame.Rect(EDITOR_WIDTH, 0, TOOLBAR_WIDTH, SCREEN_HEIGHT)
-        pygame.draw.rect(self.screen, LIGHT_BLUE, toolbar_rect)
-        pygame.draw.rect(self.screen, BLACK, toolbar_rect, 3)
-
-        title = self.big_font.render("ИНСТРУМЕНТЫ", True, BLACK)
-        self.screen.blit(title, (EDITOR_WIDTH + 50, 20))
-
-        y_offset = 80
-        for i, tool in enumerate(self.tools):
-            tool_rect = pygame.Rect(EDITOR_WIDTH + 20, y_offset, 260, 50)
-            if i == self.current_tool:
-                pygame.draw.rect(self.screen, YELLOW, tool_rect)
-            pygame.draw.rect(self.screen, BLACK, tool_rect, 2)
-
-            key_text = self.font.render(f"[{tool['key']}]", True, BLACK)
-            self.screen.blit(key_text, (EDITOR_WIDTH + 30, y_offset + 15))
-
-            name_text = self.font.render(tool['name'], True, BLACK)
-            self.screen.blit(name_text, (EDITOR_WIDTH + 80, y_offset + 15))
-
-            y_offset += 60
-
-        # Кнопки
-        save_btn = pygame.Rect(EDITOR_WIDTH + 50, SCREEN_HEIGHT - 200, 200, 50)
-        load_btn = pygame.Rect(EDITOR_WIDTH + 50, SCREEN_HEIGHT - 130, 200, 50)
-        back_btn = pygame.Rect(EDITOR_WIDTH + 50, SCREEN_HEIGHT - 60, 200, 50)
-
-        pygame.draw.rect(self.screen, GREEN, save_btn)
-        pygame.draw.rect(self.screen, ORANGE, load_btn)
-        pygame.draw.rect(self.screen, RED, back_btn)
-        pygame.draw.rect(self.screen, BLACK, save_btn, 2)
-        pygame.draw.rect(self.screen, BLACK, load_btn, 2)
-        pygame.draw.rect(self.screen, BLACK, back_btn, 2)
-
-        self.screen.blit(self.font.render("СОХРАНИТЬ", True, BLACK), (save_btn.x + 50, save_btn.y + 15))
-        self.screen.blit(self.font.render("ЗАГРУЗИТЬ", True, BLACK), (load_btn.x + 50, load_btn.y + 15))
-        self.screen.blit(self.font.render("НАЗАД", True, BLACK), (back_btn.x + 60, back_btn.y + 15))
-
-        box_count = sum(row.count(BOX) + row.count(BOX_ON_GOAL) for row in self.level)
-        goal_count = sum(row.count(GOAL) + row.count(BOX_ON_GOAL) + row.count(PLAYER_ON_GOAL) for row in self.level)
-        stats_color = BLACK if box_count == goal_count else RED
-        stats_text = self.font.render(f"Ящики: {box_count} | Цели: {goal_count}", True, stats_color)
-        self.screen.blit(stats_text, (EDITOR_WIDTH + 30, SCREEN_HEIGHT - 250))
-
-        if self.status_message and self.status_timer > 0:
-            status_surface = self.font.render(self.status_message, True,
-                                              GREEN if "Сохранено" in self.status_message or "Загружено" in self.status_message else RED)
-            self.screen.blit(status_surface, (EDITOR_WIDTH + 30, SCREEN_HEIGHT - 280))
-            self.status_timer -= 1
-
-        if self.show_save_dialog:
-            save_btn, cancel_btn = self.get_filename_input()
-            pygame.display.flip()
-
-            waiting = True
-            while waiting:
-                for e in pygame.event.get():
-                    if e.type == pygame.KEYDOWN:
-                        if e.key == pygame.K_RETURN:
-                            if self.save_level():
-                                self.show_save_dialog = False
-                                self.filename_input = ""
-                            waiting = False
-                        elif e.key == pygame.K_BACKSPACE:
-                            self.filename_input = self.filename_input[:-1]
-                        elif e.unicode.isprintable():
-                            self.filename_input += e.unicode
-                    elif e.type == pygame.MOUSEBUTTONDOWN:
-                        if save_btn.collidepoint(e.pos):
-                            if self.save_level():
-                                self.show_save_dialog = False
-                                self.filename_input = ""
-                            waiting = False
-                        elif cancel_btn.collidepoint(e.pos):
-                            self.show_save_dialog = False
-                            self.filename_input = ""
-                            waiting = False
-                    elif e.type == pygame.QUIT:
-                        waiting = False
-                        return False
-                self.draw()
-                save_btn, cancel_btn = self.get_filename_input()
-                pygame.display.flip()
-                self.clock.tick(30)
-
-        if self.show_load_dialog:
-            save_btn, cancel_btn = self.get_filename_input()
-            pygame.display.flip()
-
-            waiting = True
-            while waiting:
-                for e in pygame.event.get():
-                    if e.type == pygame.KEYDOWN:
-                        if e.key == pygame.K_RETURN:
-                            if self.load_level():
-                                self.show_load_dialog = False
-                                self.filename_input = ""
-                            waiting = False
-                        elif e.key == pygame.K_BACKSPACE:
-                            self.filename_input = self.filename_input[:-1]
-                        elif e.unicode.isprintable():
-                            self.filename_input += e.unicode
-                    elif e.type == pygame.MOUSEBUTTONDOWN:
-                        if save_btn.collidepoint(e.pos):
-                            if self.load_level():
-                                self.show_load_dialog = False
-                                self.filename_input = ""
-                            waiting = False
-                        elif cancel_btn.collidepoint(e.pos):
-                            self.show_load_dialog = False
-                            self.filename_input = ""
-                            waiting = False
-                    elif e.type == pygame.QUIT:
-                        waiting = False
-                        return False
-                self.draw()
-                save_btn, cancel_btn = self.get_filename_input()
-                pygame.display.flip()
-                self.clock.tick(30)
-
-        return save_btn, load_btn, back_btn
+    def clear_level(self):
+        self.level = [[' ' for _ in range(self.map_width)] for _ in range(self.map_height)]
+        self.update_stats()
+        self.status_message = "Поле очищено"
+        self.status_timer = 60
 
     def run(self):
         running = True
+
         while running:
-            save_btn, load_btn, back_btn = self.draw()
+            self.draw()
             pygame.display.flip()
 
+            # ДИАЛОГ СОХРАНЕНИЯ
+            if self.show_name_input:
+                ok_btn, cancel_btn = self.draw_name_dialog()
+                pygame.display.flip()
+
+                waiting = True
+                while waiting:
+                    for e in pygame.event.get():
+                        if e.type == pygame.QUIT:
+                            running = False
+                            waiting = False
+                        elif e.type == pygame.KEYDOWN:
+                            if e.key == pygame.K_RETURN:
+                                if self.name_input_text.strip():
+                                    self.save_level(self.name_input_text.strip())
+                                self.show_name_input = False
+                                self.name_input_text = ""
+                                waiting = False
+                            elif e.key == pygame.K_BACKSPACE:
+                                self.name_input_text = self.name_input_text[:-1]
+                            elif e.unicode.isprintable() and len(self.name_input_text) < 20:
+                                self.name_input_text += e.unicode
+                        elif e.type == pygame.MOUSEBUTTONDOWN:
+                            x, y = e.pos
+                            if ok_btn.collidepoint(x, y):
+                                if self.name_input_text.strip():
+                                    self.save_level(self.name_input_text.strip())
+                                self.show_name_input = False
+                                self.name_input_text = ""
+                                waiting = False
+                            elif cancel_btn.collidepoint(x, y):
+                                self.show_name_input = False
+                                self.name_input_text = ""
+                                waiting = False
+                    self.draw()
+                    ok_btn, cancel_btn = self.draw_name_dialog()
+                    pygame.display.flip()
+                    self.clock.tick(30)
+                continue
+
+            # ОСНОВНЫЕ СОБЫТИЯ
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
@@ -333,41 +321,56 @@ class LevelEditor:
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         running = False
-                    for i, tool in enumerate(self.tools):
+                    for i, tool in enumerate(TOOLS):
                         if event.unicode == tool['key']:
                             self.current_tool = i
 
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     x, y = pygame.mouse.get_pos()
+                    panel_x = self.map_width * TILE_SIZE + 10
 
-                    if x > EDITOR_WIDTH:
-                        # Тулбар
-                        for i in range(len(self.tools)):
-                            btn_y = 80 + i * 60
-                            if EDITOR_WIDTH + 20 < x < EDITOR_WIDTH + 280 and btn_y < y < btn_y + 50:
+                    if "new" in self.button_rects and self.button_rects["new"].collidepoint(x, y):
+                        self.clear_level()
+                    elif "save" in self.button_rects and self.button_rects["save"].collidepoint(x, y):
+                        if self.is_valid:
+                            self.show_name_input = True
+                            self.name_input_text = ""
+                        else:
+                            self.status_message = "Уровень невалиден!"
+                            self.status_timer = 60
+                    elif "load" in self.button_rects and self.button_rects["load"].collidepoint(x, y):
+                        if self.selected_level_index >= 0 and self.selected_level_index < len(self.saved_levels):
+                            self.load_level(self.saved_levels[self.selected_level_index])
+                    elif "back" in self.button_rects and self.button_rects["back"].collidepoint(x, y):
+                        running = False
+                    else:
+                        for i in range(len(self.saved_levels)):
+                            if f"level_{i}" in self.button_rects and self.button_rects[f"level_{i}"].collidepoint(x, y):
+                                self.selected_level_index = i
+                                self.status_message = f"Выбран: {self.saved_levels[i]}"
+                                self.status_timer = 30
+
+                        y_offset = 50
+                        for i in range(len(TOOLS)):
+                            btn_rect = pygame.Rect(panel_x + 5, y_offset + i * 32, SCREEN_WIDTH - panel_x - 15, 28)
+                            if btn_rect.collidepoint(x, y):
                                 self.current_tool = i
 
-                        if save_btn.collidepoint(x, y):
-                            self.show_save_dialog = True
-                            self.filename_input = ""
-                        elif load_btn.collidepoint(x, y):
-                            self.show_load_dialog = True
-                            self.filename_input = ""
-                        elif back_btn.collidepoint(x, y):
-                            running = False
-                    else:
-                        grid_x = x // TILE_SIZE
-                        grid_y = y // TILE_SIZE
-                        if 0 <= grid_x < self.map_width and 0 <= grid_y < self.map_height:
-                            self.level[grid_y][grid_x] = self.tools[self.current_tool]['char']
+                        if 5 <= x < self.map_width * TILE_SIZE + 5 and 40 <= y < self.map_height * TILE_SIZE + 40:
+                            grid_x = (x - 5) // TILE_SIZE
+                            grid_y = (y - 40) // TILE_SIZE
+                            if 0 <= grid_x < self.map_width and 0 <= grid_y < self.map_height:
+                                self.level[grid_y][grid_x] = TOOLS[self.current_tool]['char']
+                                self.update_stats()
 
                 elif event.type == pygame.MOUSEMOTION and pygame.mouse.get_pressed()[0]:
                     x, y = pygame.mouse.get_pos()
-                    if x < EDITOR_WIDTH:
-                        grid_x = x // TILE_SIZE
-                        grid_y = y // TILE_SIZE
+                    if 5 <= x < self.map_width * TILE_SIZE + 5 and 40 <= y < self.map_height * TILE_SIZE + 40:
+                        grid_x = (x - 5) // TILE_SIZE
+                        grid_y = (y - 40) // TILE_SIZE
                         if 0 <= grid_x < self.map_width and 0 <= grid_y < self.map_height:
-                            self.level[grid_y][grid_x] = self.tools[self.current_tool]['char']
+                            self.level[grid_y][grid_x] = TOOLS[self.current_tool]['char']
+                            self.update_stats()
 
             self.clock.tick(60)
 
