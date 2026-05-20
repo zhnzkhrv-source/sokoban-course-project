@@ -54,5 +54,9 @@
   "Level14": {
     "best_moves": 35,
     "attempts": 1
+  },
+  "Level15": {
+    "best_moves": 43,
+    "attempts": 1
   }
 }

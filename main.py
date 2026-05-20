@@ -218,26 +218,40 @@ class GameManager:
             except:
                 pass
 
+        # Функция для извлечения номера уровня
+        def level_number(name):
+            import re
+            numbers = re.findall(r'\d+', name)
+            return int(numbers[0]) if numbers else 999
+
         y = 100
         if not stats:
             text = self.small_font.render("Нет статистики", True, TEXT_COLOR)
             self.screen.blit(text, (self.screen_width // 2 - text.get_width() // 2, 200))
         else:
-            for level_name, data in sorted(stats.items(), key=lambda x: extract_level_number(x[0])):
+            for level_name, data in sorted(stats.items(), key=lambda x: level_number(x[0])):
                 text = self.small_font.render(
                     f"{level_name}: {data.get('best_moves', '-')} ходов, {data.get('attempts', 0)} попыток",
                     True, TEXT_COLOR
                 )
                 self.screen.blit(text, (50, y))
                 y += 25
-                if y > self.screen_height - 120:
+                if y > self.screen_height - 150:
                     break
 
-        # Кнопки
-        std_rect = pygame.Rect(self.screen_width // 2 - 210, self.screen_height - 60, 200, 40)
-        cust_rect = pygame.Rect(self.screen_width // 2 + 10, self.screen_height - 60, 200, 40)
-        back_rect = pygame.Rect(self.screen_width // 2 - 100, self.screen_height - 60, 200, 40)
+        # ===== РАЗДВИНУТЫЕ КНОПКИ =====
+        btn_width = 180
+        btn_height = 40
+        spacing = 20
 
+        total_width = btn_width * 2 + spacing
+        start_x = (self.screen_width - total_width) // 2
+
+        std_rect = pygame.Rect(start_x, self.screen_height - 80, btn_width, btn_height)
+        cust_rect = pygame.Rect(start_x + btn_width + spacing, self.screen_height - 80, btn_width, btn_height)
+        back_rect = pygame.Rect(self.screen_width // 2 - 100, self.screen_height - 30, 200, btn_height)
+
+        # Цвета кнопок
         if category == "standard":
             pygame.draw.rect(self.screen, GREEN, std_rect)
             pygame.draw.rect(self.screen, BTN_COLOR, cust_rect)
@@ -399,7 +413,7 @@ class GameManager:
 
                         if game.check_win():
                             # Пауза 0.8 секунды перед экраном победы
-                            pygame.time.wait(800)
+                            pygame.time.wait(500)
 
                             level_completed = True
                             level_name = f"Level{current_level + 1}" if category == "standard" else f"Custom{current_level + 1}"
