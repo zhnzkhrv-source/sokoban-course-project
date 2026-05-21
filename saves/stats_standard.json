@@ -74,13 +74,13 @@
   },
   "Level14": {
     "best_moves": 22,
-    "attempts": 6,
+    "attempts": 7,
     "best_pushes": 9,
     "best_time": 7
   },
   "Level15": {
     "best_moves": 41,
-    "attempts": 8,
+    "attempts": 9,
     "best_pushes": 12,
     "best_time": 16
   }

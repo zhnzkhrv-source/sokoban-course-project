@@ -476,7 +476,9 @@ class GameManager: # инициализация главного менедже�
                     return "exit"
 
                 if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_F11:
+                    if event.key == pygame.K_f or event.key == pygame.K_F11:
+                        self.toggle_fullscreen()
+                    if event.mod & pygame.KMOD_META and event.key == pygame.K_f:
                         self.toggle_fullscreen()
 
                     if event.key == pygame.K_ESCAPE:
@@ -603,7 +605,12 @@ class GameManager: # инициализация главного менедже�
                                     waiting = False
                                     self.running = False
                                 if event.type == pygame.KEYDOWN:
-                                    waiting = False
+                                    if event.key == pygame.K_f or event.key == pygame.K_F11:
+                                        self.toggle_fullscreen()
+                                    elif event.mod & pygame.KMOD_META and event.key == pygame.K_f:
+                                        self.toggle_fullscreen()
+                                    else:
+                                        waiting = False
                             self.clock.tick(30)
 
                         return "menu"
@@ -637,7 +644,7 @@ class GameManager: # инициализация главного менедже�
                     if event.type == pygame.QUIT:
                         self.running = False
                     if event.type == pygame.KEYDOWN:
-                        if event.key == pygame.K_F11:
+                        if event.key == pygame.K_f or event.key == pygame.K_F11:
                             self.toggle_fullscreen()
                     if event.type == pygame.MOUSEBUTTONDOWN:
                         x, y = pygame.mouse.get_pos()
@@ -674,7 +681,7 @@ class GameManager: # инициализация главного менедже�
                                 self.running = False
                                 waiting = False
                             if event.type == pygame.KEYDOWN:
-                                if event.key == pygame.K_F11:
+                                if event.key == pygame.K_f or event.key == pygame.K_F11:
                                     self.toggle_fullscreen()
                                 if event.key == pygame.K_ESCAPE:
                                     waiting = False
@@ -705,8 +712,8 @@ class GameManager: # инициализация главного менедже�
                     if event.type == pygame.QUIT:
                         self.running = False
                     if event.type == pygame.KEYDOWN:
-                        if event.key == pygame.K_F11:
-                            self.toggle_fullscreen()
+                        if event.key == pygame.K_ESCAPE:
+                            self.state = "menu"
                     if event.type == pygame.MOUSEBUTTONDOWN:
                         x, y = pygame.mouse.get_pos()
                         for rect, level_idx in self.level_buttons:
@@ -735,7 +742,7 @@ class GameManager: # инициализация главного менедже�
                         if event.type == pygame.KEYDOWN:
                             if event.key == pygame.K_ESCAPE:
                                 in_stats = False
-                            if event.key == pygame.K_F11:
+                            if event.key == pygame.K_f or event.key == pygame.K_F11:
                                 self.toggle_fullscreen()
                         if event.type == pygame.MOUSEBUTTONDOWN:
                             x, y = pygame.mouse.get_pos()
