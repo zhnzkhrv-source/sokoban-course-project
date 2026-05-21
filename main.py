@@ -3,27 +3,15 @@ import sys
 import os
 import json
 import re
-
-# Цвета оформления
-BG_COLOR = (255, 240, 245)
-BTN_COLOR = (255, 182, 193)
-TEXT_COLOR = (139, 0, 139)
-BORDER_COLOR = (219, 112, 147)
-
-# Дополнительные цвета
-GREEN = (100, 200, 100)
-YELLOW = (255, 220, 100)
-RED = (220, 100, 100)
+from constants import *
 
 
 def extract_level_number(name):
-    """Извлекает номер уровня из имени (level10 -> 10, Custom3 -> 3)"""
     numbers = re.findall(r'\d+', name)
     return int(numbers[0]) if numbers else 999
 
 
 def load_all_levels_from_file(filename="levels.txt"):
-    """Загружает стандартные уровни из levels.txt"""
     if not os.path.exists(filename):
         print(f"Ошибка: файл {filename} не найден!")
         return []
@@ -59,7 +47,6 @@ def load_all_levels_from_file(filename="levels.txt"):
 
 
 def load_custom_levels():
-    """Загружает пользовательские уровни из папки levels/"""
     if not os.path.exists("levels"):
         os.makedirs("levels")
         return []
@@ -70,11 +57,14 @@ def load_custom_levels():
 
     for filename in files:
         filepath = os.path.join("levels", filename)
-        with open(filepath, 'r') as f:
-            lines = [line.rstrip() for line in f.readlines() if line.strip()]
-            if lines:
-                custom_levels.append(lines)
-                print(f"Загружен пользовательский уровень: {filename}")
+        try:
+            with open(filepath, 'r') as f:
+                lines = [line.rstrip() for line in f.readlines() if line.strip()]
+                if lines:
+                    custom_levels.append(lines)
+                    print(f"Загружен пользовательский уровень: {filename}")
+        except (OSError, IOError) as e:
+            print(f"Ошибка загрузки {filename}: {e}")
 
     return custom_levels
 
@@ -88,7 +78,8 @@ def load_progress(category="standard"):
         with open(progress_file, "r") as f:
             data = json.load(f)
             return data.get("current_level", 0)
-    except:
+    except (json.JSONDecodeError, FileNotFoundError) as e:
+        print(f"Ошибка загрузки прогресса: {e}")
         return 0
 
 
@@ -108,17 +99,23 @@ def save_stats(level_name, moves, pushes, category="standard"):
         try:
             with open(stats_file, "r") as f:
                 stats = json.load(f)
-        except:
-            pass
+        except (json.JSONDecodeError, FileNotFoundError) as e:
+            print(f"Ошибка загрузки статистики: {e}")
 
     if level_name in stats:
         old = stats[level_name]
         old['attempts'] = old.get('attempts', 0) + 1
         if moves < old.get('best_moves', 999999):
             old['best_moves'] = moves
+        if pushes < old.get('best_pushes', 999999):
+            old['best_pushes'] = pushes
         stats[level_name] = old
     else:
-        stats[level_name] = {'best_moves': moves, 'attempts': 1}
+        stats[level_name] = {
+            'best_moves': moves,
+            'best_pushes': pushes,
+            'attempts': 1
+        }
 
     with open(stats_file, "w") as f:
         json.dump(stats, f, indent=2)
@@ -126,11 +123,11 @@ def save_stats(level_name, moves, pushes, category="standard"):
 
 def get_level_category(level_num):
     if level_num <= 5:
-        return "ЛЁГКИЙ", GREEN
+        return "ЛЁГКИЙ", CAT_EASY
     elif level_num <= 10:
-        return "СРЕДНИЙ", YELLOW
+        return "СРЕДНИЙ", CAT_MEDIUM
     else:
-        return "СЛОЖНЫЙ", RED
+        return "СЛОЖНЫЙ", CAT_HARD
 
 
 class GameManager:
@@ -181,11 +178,12 @@ class GameManager:
         self.screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 50))
 
         menu_items = [
-            {"text": "ИГРАТЬ", "y": 200, "action": "playing"},
-            {"text": "СОЗДАННЫЕ УРОВНИ", "y": 270, "action": "custom"},
-            {"text": "РЕДАКТОР", "y": 340, "action": "editor"},
-            {"text": "СТАТИСТИКА", "y": 410, "action": "stats"},
-            {"text": "ВЫХОД", "y": 480, "action": "exit"},
+            {"text": "ИГРАТЬ", "y": 180, "action": "playing"},
+            {"text": "СОЗДАННЫЕ УРОВНИ", "y": 250, "action": "custom"},
+            {"text": "ВЫБРАТЬ УРОВЕНЬ", "y": 320, "action": "select"},
+            {"text": "РЕДАКТОР", "y": 390, "action": "editor"},
+            {"text": "СТАТИСТИКА", "y": 460, "action": "stats"},
+            {"text": "ВЫХОД", "y": 530, "action": "exit"},
         ]
 
         hint = self.small_font.render("F11 - полноэкранный режим", True, TEXT_COLOR)
@@ -198,9 +196,126 @@ class GameManager:
             pygame.draw.rect(self.screen, BORDER_COLOR, btn_rect, 3)
             text = self.font.render(item["text"], True, TEXT_COLOR)
             self.screen.blit(text, (btn_rect.centerx - text.get_width() // 2, btn_rect.centery - 10))
+            self.button_rects = getattr(self, 'button_rects', {})
+            self.button_rects[item["action"]] = btn_rect
 
         self.draw_message()
         pygame.display.flip()
+
+    def show_level_select(self):
+        self.screen.fill(BG_COLOR)
+        title = self.font.render("ВЫБОР УРОВНЯ", True, TEXT_COLOR)
+        self.screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 30))
+
+        levels = load_all_levels_from_file("levels.txt")
+        if not levels:
+            self.show_message("Нет уровней!")
+            return "menu"
+
+        cols = 3
+        rows = 5
+        btn_w = 150
+        btn_h = 50
+        spacing_x = 40
+        spacing_y = 20
+
+        total_width = cols * btn_w + (cols - 1) * spacing_x
+        start_x = (self.screen_width - total_width) // 2
+        start_y = 150
+
+        self.level_buttons = []
+        for i in range(len(levels)):
+            row = i // cols
+            col = i % cols
+            x = start_x + col * (btn_w + spacing_x)
+            y = start_y + row * (btn_h + spacing_y)
+            rect = pygame.Rect(x, y, btn_w, btn_h)
+
+            pygame.draw.rect(self.screen, BTN_COLOR, rect)
+            pygame.draw.rect(self.screen, BORDER_COLOR, rect, 2)
+            text = self.small_font.render(f"Уровень {i + 1}", True, TEXT_COLOR)
+            self.screen.blit(text, (rect.centerx - text.get_width() // 2, rect.centery - 10))
+            self.level_buttons.append((rect, i))
+
+        back_rect = pygame.Rect(self.screen_width // 2 - 100, self.screen_height - 80, 200, 50)
+        pygame.draw.rect(self.screen, RED, back_rect)
+        pygame.draw.rect(self.screen, BLACK, back_rect, 2)
+        back_text = self.font.render("НАЗАД", True, WHITE)
+        self.screen.blit(back_text, (back_rect.centerx - back_text.get_width() // 2, back_rect.centery - 10))
+
+        self.draw_message()
+        pygame.display.flip()
+        return back_rect
+
+    def show_custom_levels_select(self):
+        """Показывает список созданных уровней для выбора"""
+        self.screen.fill(BG_COLOR)
+        title = self.font.render("ВЫБОР СОЗДАННОГО УРОВНЯ", True, TEXT_COLOR)
+        self.screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 30))
+
+        custom_levels = load_custom_levels()
+        if not custom_levels:
+            self.show_message("Нет созданных уровней! Создайте их в редакторе", 90)
+            return None, None
+
+        # Загружаем прогресс для созданных уровней
+        progress = {}
+        progress_file = "saves/custom_progress.json"
+        if os.path.exists(progress_file):
+            try:
+                with open(progress_file, "r") as f:
+                    progress = json.load(f)
+            except (json.JSONDecodeError, FileNotFoundError) as e:
+                print(f"Ошибка загрузки прогресса: {e}")
+
+        cols = 2
+        btn_w = 300
+        btn_h = 50
+        spacing_x = 40
+        spacing_y = 20
+
+        total_width = cols * btn_w + (cols - 1) * spacing_x
+        start_x = (self.screen_width - total_width) // 2
+        start_y = 150
+
+        level_buttons = []
+        for i, level_map in enumerate(custom_levels):
+            row = i // cols
+            col = i % cols
+            x = start_x + col * (btn_w + spacing_x)
+            y = start_y + row * (btn_h + spacing_y)
+            rect = pygame.Rect(x, y, btn_w, btn_h)
+
+            # Получаем имя файла для отображения
+            filename = f"Уровень {i + 1}"
+            # Проверяем пройден ли уровень
+            is_completed = progress.get(filename, False)
+
+            if is_completed:
+                pygame.draw.rect(self.screen, GREEN, rect)
+            else:
+                pygame.draw.rect(self.screen, BTN_COLOR, rect)
+            pygame.draw.rect(self.screen, BORDER_COLOR, rect, 2)
+
+            text = self.small_font.render(filename, True, TEXT_COLOR)
+            self.screen.blit(text, (rect.centerx - text.get_width() // 2, rect.centery - 10))
+
+            # Добавляем галочку для пройденных
+            if is_completed:
+                check_text = self.small_font.render("✓", True, TEXT_COLOR)
+                self.screen.blit(check_text, (rect.x + 15, rect.centery - 10))
+
+            level_buttons.append((rect, i, filename))
+
+        back_rect = pygame.Rect(self.screen_width // 2 - 100, self.screen_height - 80, 200, 50)
+        pygame.draw.rect(self.screen, RED, back_rect)
+        pygame.draw.rect(self.screen, BLACK, back_rect, 2)
+        back_text = self.font.render("НАЗАД", True, WHITE)
+        self.screen.blit(back_text, (back_rect.centerx - back_text.get_width() // 2, back_rect.centery - 10))
+
+        self.draw_message()
+        pygame.display.flip()
+        return level_buttons, back_rect
 
     def show_stats(self, category="standard"):
         self.screen.fill(BG_COLOR)
@@ -215,23 +330,18 @@ class GameManager:
             try:
                 with open(stats_file, "r") as f:
                     stats = json.load(f)
-            except:
-                pass
-
-        # Функция для извлечения номера уровня
-        def level_number(name):
-            import re
-            numbers = re.findall(r'\d+', name)
-            return int(numbers[0]) if numbers else 999
+            except (json.JSONDecodeError, FileNotFoundError) as e:
+                print(f"Ошибка загрузки статистики: {e}")
 
         y = 100
         if not stats:
             text = self.small_font.render("Нет статистики", True, TEXT_COLOR)
             self.screen.blit(text, (self.screen_width // 2 - text.get_width() // 2, 200))
         else:
-            for level_name, data in sorted(stats.items(), key=lambda x: level_number(x[0])):
+            for level_name, data in sorted(stats.items(), key=lambda x: extract_level_number(x[0])):
+                best_pushes = data.get('best_pushes', '-')
                 text = self.small_font.render(
-                    f"{level_name}: {data.get('best_moves', '-')} ходов, {data.get('attempts', 0)} попыток",
+                    f"{level_name}: {data.get('best_moves', '-')} ходов, {best_pushes} толчков, {data.get('attempts', 0)} попыток",
                     True, TEXT_COLOR
                 )
                 self.screen.blit(text, (50, y))
@@ -239,7 +349,6 @@ class GameManager:
                 if y > self.screen_height - 150:
                     break
 
-        # ===== РАЗДВИНУТЫЕ КНОПКИ =====
         btn_width = 180
         btn_height = 40
         spacing = 20
@@ -251,13 +360,12 @@ class GameManager:
         cust_rect = pygame.Rect(start_x + btn_width + spacing, self.screen_height - 80, btn_width, btn_height)
         back_rect = pygame.Rect(self.screen_width // 2 - 100, self.screen_height - 30, 200, btn_height)
 
-        # Цвета кнопок
         if category == "standard":
-            pygame.draw.rect(self.screen, GREEN, std_rect)
+            pygame.draw.rect(self.screen, CAT_EASY, std_rect)
             pygame.draw.rect(self.screen, BTN_COLOR, cust_rect)
         else:
             pygame.draw.rect(self.screen, BTN_COLOR, std_rect)
-            pygame.draw.rect(self.screen, GREEN, cust_rect)
+            pygame.draw.rect(self.screen, CAT_EASY, cust_rect)
 
         pygame.draw.rect(self.screen, BORDER_COLOR, std_rect, 2)
         pygame.draw.rect(self.screen, BORDER_COLOR, cust_rect, 2)
@@ -275,55 +383,31 @@ class GameManager:
         pygame.display.flip()
         return back_rect, std_rect, cust_rect
 
-    def run_game(self, levels, category="standard", category_name=""):
+    def run_game(self, levels, category="standard", category_name="", start_level=-1):
         if not levels:
             self.show_message("Нет уровней!", 90)
             return "menu"
 
-        current_level = load_progress(category)
-        if current_level >= len(levels):
-            current_level = 0
+        if start_level >= 0 and start_level < len(levels):
+            current_level = start_level
+        else:
+            current_level = load_progress(category)
+            if current_level >= len(levels):
+                current_level = 0
 
         from game import SokobanGame
         game = SokobanGame(levels[current_level])
         level_completed = False
         hint_move = None
         hint_status = ""
-
-        # Проверка победы при загрузке
-        if game.check_win():
-            # Пауза 1.5 секунды, чтобы игрок увидел финальное положение
-            pygame.time.wait(1500)
-
-            level_completed = True
-            level_name = f"Level{current_level + 1}" if category == "standard" else f"Custom{current_level + 1}"
-            stats = game.get_stats()
-            save_stats(level_name, stats['moves'], stats['pushes'], category)
-
-            self.screen.fill(BG_COLOR)
-            win_text = self.font.render("ПОБЕДА!", True, GREEN)
-            self.screen.blit(win_text,
-                             (self.screen_width // 2 - win_text.get_width() // 2, self.screen_height // 2 - 50))
-            pygame.display.flip()
-            pygame.time.wait(2000)  # 2 секунды показываем экран победы
-
-            current_level += 1
-            if current_level >= len(levels):
-                final_text = self.font.render("ВСЕ УРОВНИ ПРОЙДЕНЫ!", True, GREEN)
-                self.screen.blit(final_text,
-                                 (self.screen_width // 2 - final_text.get_width() // 2, self.screen_height // 2))
-                pygame.display.flip()
-                pygame.time.wait(2000)
-                return "menu"
-            else:
-                save_progress(current_level, category)
-                game = SokobanGame(levels[current_level])
-                level_completed = False
-                hint_status = ""
-                hint_move = None
+        win_shown = False
+        win_time = 0
 
         running = True
         while running:
+            dt = self.clock.get_time() / 1000.0
+            game.update(dt)
+
             self.screen.fill(BG_COLOR)
 
             if not level_completed:
@@ -378,7 +462,7 @@ class GameManager:
                         save_progress(current_level, category)
                         return "menu"
 
-                    if not level_completed:
+                    if not level_completed and not win_shown:
                         if event.key == pygame.K_UP:
                             game.try_move(0, -1)
                             hint_status = ""
@@ -411,36 +495,104 @@ class GameManager:
                                 hint_move = game.get_hint()
                                 hint_status = "found" if hint_move else "not_found"
 
-                        if game.check_win():
-                            # Пауза 0.8 секунды перед экраном победы
-                            pygame.time.wait(500)
+                        if game.check_win() and not win_shown:
+                            win_shown = True
+                            win_time = pygame.time.get_ticks()
 
-                            level_completed = True
-                            level_name = f"Level{current_level + 1}" if category == "standard" else f"Custom{current_level + 1}"
+                            level_name = f"Level{current_level + 1}" if category == "standard" else f"Уровень {current_level + 1}"
                             stats = game.get_stats()
                             save_stats(level_name, stats['moves'], stats['pushes'], category)
 
-                            self.screen.fill(BG_COLOR)
-                            win_text = self.font.render("ПОБЕДА!", True, GREEN)
-                            self.screen.blit(win_text, (self.screen_width // 2 - win_text.get_width() // 2,
-                                                        self.screen_height // 2 - 50))
-                            pygame.display.flip()
-                            pygame.time.wait(1500)
+                            if category == "custom":
+                                progress_file = "saves/custom_progress.json"
+                                progress = {}
+                                if os.path.exists(progress_file):
+                                    try:
+                                        with open(progress_file, "r") as f:
+                                            progress = json.load(f)
+                                    except:
+                                        pass
+                                progress[level_name] = True
+                                with open(progress_file, "w") as f:
+                                    json.dump(progress, f, indent=2)
 
-                            current_level += 1
-                            if current_level >= len(levels):
-                                final_text = self.font.render("ВСЕ УРОВНИ ПРОЙДЕНЫ!", True, GREEN)
-                                self.screen.blit(final_text, (self.screen_width // 2 - final_text.get_width() // 2,
-                                                              self.screen_height // 2))
-                                pygame.display.flip()
-                                pygame.time.wait(2000)
-                                return "menu"
-                            else:
-                                save_progress(current_level, category)
-                                game = SokobanGame(levels[current_level])
-                                level_completed = False
-                                hint_status = ""
-                                hint_move = None
+                            # Красивая табличка победы
+                            win_rect = pygame.Rect(
+                                self.screen_width // 2 - 200,
+                                self.screen_height // 2 - 100,
+                                400,
+                                200
+                            )
+
+                            pygame.draw.rect(self.screen, BG_COLOR, win_rect)
+                            pygame.draw.rect(self.screen, BORDER_COLOR, win_rect, 4)
+                            pygame.draw.rect(self.screen, BTN_COLOR, win_rect.inflate(-8, -8))
+
+                            win_text = self.font.render("ПОБЕДА!", True, TEXT_COLOR)
+                            self.screen.blit(win_text, (win_rect.centerx - win_text.get_width() // 2, win_rect.y + 40))
+
+                            moves_text = self.small_font.render(f"Ходов: {stats['moves']}", True, TEXT_COLOR)
+                            pushes_text = self.small_font.render(f"Толчков: {stats['pushes']}", True, TEXT_COLOR)
+                            self.screen.blit(moves_text, (win_rect.x + 50, win_rect.y + 90))
+                            self.screen.blit(pushes_text, (win_rect.x + 50, win_rect.y + 120))
+
+                            continue_text = self.small_font.render("Нажми любую клавишу...", True, GRAY)
+                            self.screen.blit(continue_text,
+                                             (win_rect.centerx - continue_text.get_width() // 2, win_rect.y + 160))
+
+                            pygame.display.flip()
+                            pygame.time.wait(2000)
+
+            # Обработка победы после паузы
+            if win_shown and not level_completed:
+                if pygame.time.get_ticks() - win_time > 2000:
+                    level_completed = True
+                    current_level += 1
+                    if current_level >= len(levels):
+                        # Красивая табличка "ВСЕ УРОВНИ ПРОЙДЕНЫ"
+                        complete_rect = pygame.Rect(
+                            self.screen_width // 2 - 250,
+                            self.screen_height // 2 - 100,
+                            500,
+                            200
+                        )
+
+                        pygame.draw.rect(self.screen, BG_COLOR, complete_rect)
+                        pygame.draw.rect(self.screen, BORDER_COLOR, complete_rect, 4)
+                        pygame.draw.rect(self.screen, CAT_EASY, complete_rect.inflate(-8, -8))
+
+                        complete_text = self.font.render("ВСЕ УРОВНИ ПРОЙДЕНЫ!", True, TEXT_COLOR)
+                        self.screen.blit(complete_text,
+                                         (complete_rect.centerx - complete_text.get_width() // 2, complete_rect.y + 50))
+
+                        congrats_text = self.small_font.render("Поздравляем! Вы прошли все уровни.", True, TEXT_COLOR)
+                        self.screen.blit(congrats_text, (complete_rect.centerx - congrats_text.get_width() // 2,
+                                                         complete_rect.y + 110))
+
+                        exit_text = self.small_font.render("Нажмите любую клавишу для выхода...", True, GRAY)
+                        self.screen.blit(exit_text,
+                                         (complete_rect.centerx - exit_text.get_width() // 2, complete_rect.y + 150))
+
+                        pygame.display.flip()
+
+                        waiting = True
+                        while waiting:
+                            for event in pygame.event.get():
+                                if event.type == pygame.QUIT:
+                                    waiting = False
+                                    self.running = False
+                                if event.type == pygame.KEYDOWN:
+                                    waiting = False
+                            self.clock.tick(30)
+
+                        return "menu"
+                    else:
+                        save_progress(current_level, category)
+                        game = SokobanGame(levels[current_level])
+                        level_completed = False
+                        win_shown = False
+                        hint_status = ""
+                        hint_move = None
 
             self.draw_message()
             pygame.display.flip()
@@ -467,32 +619,81 @@ class GameManager:
                             self.toggle_fullscreen()
                     if event.type == pygame.MOUSEBUTTONDOWN:
                         x, y = pygame.mouse.get_pos()
-                        if pygame.Rect(self.screen_width // 2 - 150, 200, 300, 50).collidepoint(x, y):
-                            if standard_levels:
-                                self.state = "playing"
-                            else:
-                                self.show_message("Нет стандартных уровней! Добавьте levels.txt", 90)
-                        elif pygame.Rect(self.screen_width // 2 - 150, 270, 300, 50).collidepoint(x, y):
-                            self.state = "custom"
-                        elif pygame.Rect(self.screen_width // 2 - 150, 340, 300, 50).collidepoint(x, y):
-                            self.state = "editor"
-                        elif pygame.Rect(self.screen_width // 2 - 150, 410, 300, 50).collidepoint(x, y):
-                            self.state = "stats"
-                        elif pygame.Rect(self.screen_width // 2 - 150, 480, 300, 50).collidepoint(x, y):
-                            self.running = False
+                        if hasattr(self, 'button_rects'):
+                            if self.button_rects.get("playing", pygame.Rect(0, 0, 0, 0)).collidepoint(x, y):
+                                if standard_levels:
+                                    self.state = "playing"
+                                else:
+                                    self.show_message("Нет стандартных уровней! Добавьте levels.txt", 90)
+                            elif self.button_rects.get("custom", pygame.Rect(0, 0, 0, 0)).collidepoint(x, y):
+                                self.state = "custom_select"
+                            elif self.button_rects.get("select", pygame.Rect(0, 0, 0, 0)).collidepoint(x, y):
+                                self.state = "select"
+                            elif self.button_rects.get("editor", pygame.Rect(0, 0, 0, 0)).collidepoint(x, y):
+                                self.state = "editor"
+                            elif self.button_rects.get("stats", pygame.Rect(0, 0, 0, 0)).collidepoint(x, y):
+                                self.state = "stats"
+                            elif self.button_rects.get("exit", pygame.Rect(0, 0, 0, 0)).collidepoint(x, y):
+                                self.running = False
 
             elif self.state == "playing":
                 result = self.run_game(standard_levels, category="standard", category_name="СТАНДАРТНЫЕ")
                 self.state = result if result else "menu"
 
-            elif self.state == "custom":
-                custom_levels = load_custom_levels()
-                if not custom_levels:
-                    self.show_message("Нет созданных уровней! Создайте их в редакторе", 90)
+            elif self.state == "custom_select":
+                level_buttons, back_rect = self.show_custom_levels_select()
+                if level_buttons is None:
                     self.state = "menu"
                 else:
-                    result = self.run_game(custom_levels, category="custom", category_name="СОЗДАННЫЕ")
-                    self.state = result if result else "menu"
+                    waiting = True
+                    while waiting:
+                        for event in pygame.event.get():
+                            if event.type == pygame.QUIT:
+                                self.running = False
+                                waiting = False
+                            if event.type == pygame.KEYDOWN:
+                                if event.key == pygame.K_F11:
+                                    self.toggle_fullscreen()
+                                if event.key == pygame.K_ESCAPE:
+                                    waiting = False
+                                    self.state = "menu"
+                            if event.type == pygame.MOUSEBUTTONDOWN:
+                                x, y = pygame.mouse.get_pos()
+                                if back_rect.collidepoint(x, y):
+                                    waiting = False
+                                    self.state = "menu"
+                                else:
+                                    for rect, level_idx, level_name in level_buttons:
+                                        if rect.collidepoint(x, y):
+                                            custom_levels = load_custom_levels()
+                                            result = self.run_game(
+                                                [custom_levels[level_idx]],
+                                                category="custom",
+                                                category_name="СОЗДАННЫЕ",
+                                                start_level=0
+                                            )
+                                            waiting = False
+                                            self.state = "menu"
+                                            break
+                        pygame.time.wait(50)
+
+            elif self.state == "select":
+                back_rect = self.show_level_select()
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        self.running = False
+                    if event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_F11:
+                            self.toggle_fullscreen()
+                    if event.type == pygame.MOUSEBUTTONDOWN:
+                        x, y = pygame.mouse.get_pos()
+                        for rect, level_idx in self.level_buttons:
+                            if rect.collidepoint(x, y):
+                                result = self.run_game(standard_levels, category="standard", start_level=level_idx)
+                                self.state = result if result else "select"
+                                break
+                        if back_rect.collidepoint(x, y):
+                            self.state = "menu"
 
             elif self.state == "editor":
                 result = self.run_editor()

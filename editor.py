@@ -1,33 +1,8 @@
 import pygame
 import os
-
-# Константы
-TILE_SIZE = 50
-TOOLBAR_WIDTH = 280  # чуть шире
-SCREEN_WIDTH = 1150
-SCREEN_HEIGHT = 850  # выше
-
-# Цвета
-WHITE = (255, 250, 240)
-BLACK = (45, 45, 65)
-GRAY = (200, 190, 190)
-DARK_GRAY = (150, 140, 150)
-BROWN = (180, 140, 110)
-BLUE = (180, 160, 210)
-RED = (210, 130, 140)
-GREEN = (140, 200, 160)
-YELLOW = (240, 210, 140)
-PINK = (245, 220, 230)
-LIGHT_BLUE = (200, 220, 240)
-ORANGE = (255, 200, 150)
-
-WALL = '#'
-FLOOR = ' '
-PLAYER = '@'
-BOX = '$'
-GOAL = '.'
-BOX_ON_GOAL = '*'
-PLAYER_ON_GOAL = '+'
+from constants import TILE_SIZE, EDITOR_WIDTH, EDITOR_HEIGHT, TOOLBAR_WIDTH
+from constants import WHITE, BLACK, GRAY, DARK_GRAY, BROWN, BLUE, RED, GREEN, YELLOW, PINK, LIGHT_BLUE, ORANGE
+from constants import WALL, FLOOR, PLAYER, BOX, GOAL, BOX_ON_GOAL, PLAYER_ON_GOAL
 
 
 class LevelEditor:
@@ -37,13 +12,13 @@ class LevelEditor:
         self.font = pygame.font.Font(None, 24)
         self.small_font = pygame.font.Font(None, 18)
 
+        # Инструменты: убрали "Пол", оставили только Ластик
         self.tools = [
             {'key': '1', 'name': 'Стена', 'char': WALL, 'color': DARK_GRAY},
-            {'key': '2', 'name': 'Пол', 'char': FLOOR, 'color': WHITE},
-            {'key': '3', 'name': 'Игрок', 'char': PLAYER, 'color': BLUE},
-            {'key': '4', 'name': 'Ящик', 'char': BOX, 'color': BROWN},
-            {'key': '5', 'name': 'Цель', 'char': GOAL, 'color': RED},
-            {'key': '6', 'name': 'Ластик', 'char': FLOOR, 'color': GRAY},
+            {'key': '2', 'name': 'Игрок', 'char': PLAYER, 'color': BLUE},
+            {'key': '3', 'name': 'Ящик', 'char': BOX, 'color': BROWN},
+            {'key': '4', 'name': 'Цель', 'char': GOAL, 'color': RED},
+            {'key': '5', 'name': 'Ластик', 'char': FLOOR, 'color': GRAY},
         ]
         self.current_tool = 0
 
@@ -51,9 +26,8 @@ class LevelEditor:
         self.map_height = 11
         self.level = [[' ' for _ in range(self.map_width)] for _ in range(self.map_height)]
 
-        # Центрируем поле
         total_width = self.map_width * TILE_SIZE
-        self.field_x = (SCREEN_WIDTH - TOOLBAR_WIDTH - total_width) // 2
+        self.field_x = (EDITOR_WIDTH - TOOLBAR_WIDTH - total_width) // 2
         self.field_y = 80
 
         self.saved_levels = []
@@ -101,33 +75,27 @@ class LevelEditor:
     def draw(self):
         self.screen.fill(WHITE)
 
-        # Заголовок
         title = self.font.render("РЕДАКТОР УРОВНЕЙ", True, BLUE)
-        self.screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 15))
+        self.screen.blit(title, (EDITOR_WIDTH // 2 - title.get_width() // 2, 15))
 
-        # Рамка поля
         field_rect = pygame.Rect(self.field_x - 3, self.field_y - 3, self.map_width * TILE_SIZE + 6,
                                  self.map_height * TILE_SIZE + 6)
         pygame.draw.rect(self.screen, BLUE, field_rect, 2)
 
-        # Поле
         for y in range(self.map_height):
             for x in range(self.map_width):
                 self.draw_tile(x, y, self.level[y][x])
                 pygame.draw.rect(self.screen, GRAY,
                                  (self.field_x + x * TILE_SIZE, self.field_y + y * TILE_SIZE, TILE_SIZE, TILE_SIZE), 1)
 
-        # ===== ПАНЕЛЬ ИНСТРУМЕНТОВ (СПРАВА) =====
-        panel_x = SCREEN_WIDTH - TOOLBAR_WIDTH - 15
+        panel_x = EDITOR_WIDTH - TOOLBAR_WIDTH - 15
         panel_w = TOOLBAR_WIDTH
 
-        # УДЛИНЁННЫЙ ФОН
-        pygame.draw.rect(self.screen, LIGHT_BLUE, (panel_x, 50, panel_w, SCREEN_HEIGHT - 70))
-        pygame.draw.rect(self.screen, BLACK, (panel_x, 50, panel_w, SCREEN_HEIGHT - 70), 2)
+        pygame.draw.rect(self.screen, LIGHT_BLUE, (panel_x, 50, panel_w, EDITOR_HEIGHT - 70))
+        pygame.draw.rect(self.screen, BLACK, (panel_x, 50, panel_w, EDITOR_HEIGHT - 70), 2)
 
         y = 70
 
-        # СПИСОК УРОВНЕЙ
         list_title = self.font.render("Мои уровни:", True, BLACK)
         self.screen.blit(list_title, (panel_x + 15, y))
         y += 30
@@ -144,13 +112,10 @@ class LevelEditor:
 
         y += 15
 
-        # ИНСТРУМЕНТЫ
         tools_title = self.font.render("Инструменты:", True, BLACK)
         self.screen.blit(tools_title, (panel_x + 15, y))
         y += 30
 
-        # Сохраняем позиции кнопок инструментов для проверки кликов
-        tool_rects = []
         for i, tool in enumerate(self.tools):
             btn_rect = pygame.Rect(panel_x + 15, y, panel_w - 30, 38)
             if i == self.current_tool:
@@ -161,12 +126,10 @@ class LevelEditor:
             self.screen.blit(text, (panel_x + 25, y + 10))
 
             self.button_rects[f"tool_{i}"] = btn_rect
-            tool_rects.append(btn_rect)
             y += 45
 
         y += 15
 
-        # СТАТИСТИКА
         box_count = sum(row.count(BOX) + row.count(BOX_ON_GOAL) for row in self.level)
         goal_count = sum(row.count(GOAL) + row.count(BOX_ON_GOAL) + row.count(PLAYER_ON_GOAL) for row in self.level)
         player_count = sum(row.count(PLAYER) + row.count(PLAYER_ON_GOAL) for row in self.level)
@@ -183,41 +146,39 @@ class LevelEditor:
 
         y += 55
 
-        # КНОПКИ ДЕЙСТВИЙ
-        btn_new = pygame.Rect(panel_x + 15, y, panel_w - 30, 42)
+        btn_clear = pygame.Rect(panel_x + 15, y, panel_w - 30, 42)
         btn_save = pygame.Rect(panel_x + 15, y + 50, panel_w - 30, 42)
         btn_load = pygame.Rect(panel_x + 15, y + 100, panel_w - 30, 42)
         btn_back = pygame.Rect(panel_x + 15, y + 150, panel_w - 30, 42)
 
-        pygame.draw.rect(self.screen, GREEN, btn_new)
+        pygame.draw.rect(self.screen, GREEN, btn_clear)
         pygame.draw.rect(self.screen, BLUE, btn_save)
         pygame.draw.rect(self.screen, ORANGE, btn_load)
         pygame.draw.rect(self.screen, RED, btn_back)
 
-        pygame.draw.rect(self.screen, BLACK, btn_new, 2)
+        pygame.draw.rect(self.screen, BLACK, btn_clear, 2)
         pygame.draw.rect(self.screen, BLACK, btn_save, 2)
         pygame.draw.rect(self.screen, BLACK, btn_load, 2)
         pygame.draw.rect(self.screen, BLACK, btn_back, 2)
 
-        self.screen.blit(self.font.render("НОВЫЙ (C)", True, BLACK), (btn_new.x + 75, btn_new.y + 12))
-        self.screen.blit(self.font.render("СОХРАНИТЬ (S)", True, BLACK), (btn_save.x + 60, btn_save.y + 12))
-        self.screen.blit(self.font.render("ЗАГРУЗИТЬ (L)", True, BLACK), (btn_load.x + 60, btn_load.y + 12))
+        self.screen.blit(self.font.render("ОЧИСТИТЬ ВСЁ (C)", True, BLACK), (btn_clear.x + 40, btn_clear.y + 12))
+        self.screen.blit(self.font.render("СОХРАНИТЬ (S)", True, BLACK), (btn_save.x + 55, btn_save.y + 12))
+        self.screen.blit(self.font.render("ЗАГРУЗИТЬ (L)", True, BLACK), (btn_load.x + 55, btn_load.y + 12))
         self.screen.blit(self.font.render("НАЗАД (ESC)", True, BLACK), (btn_back.x + 65, btn_back.y + 12))
 
-        self.button_rects["new"] = btn_new
+        self.button_rects["clear"] = btn_clear
         self.button_rects["save"] = btn_save
         self.button_rects["load"] = btn_load
         self.button_rects["back"] = btn_back
 
-        # Статус
         if self.status_message and self.status_timer > 0:
             status_surface = self.small_font.render(self.status_message, True,
                                                     RED if "невалиден" in self.status_message else GREEN)
-            self.screen.blit(status_surface, (panel_x + 15, SCREEN_HEIGHT - 45))
+            self.screen.blit(status_surface, (panel_x + 15, EDITOR_HEIGHT - 45))
             self.status_timer -= 1
 
     def get_filename_dialog(self):
-        dialog_rect = pygame.Rect(SCREEN_WIDTH // 2 - 200, SCREEN_HEIGHT // 2 - 100, 400, 200)
+        dialog_rect = pygame.Rect(EDITOR_WIDTH // 2 - 200, EDITOR_HEIGHT // 2 - 100, 400, 200)
         pygame.draw.rect(self.screen, WHITE, dialog_rect)
         pygame.draw.rect(self.screen, BLACK, dialog_rect, 3)
 
@@ -245,10 +206,16 @@ class LevelEditor:
         return ok_btn, cancel_btn
 
     def save_level(self, name):
+        safe_name = os.path.basename(name)
+        if not safe_name or safe_name.startswith('.'):
+            self.status_message = "Недопустимое имя файла!"
+            self.status_timer = 60
+            return False
+
         if not os.path.exists("levels"):
             os.makedirs("levels")
 
-        filename = name if name.endswith(".txt") else name + ".txt"
+        filename = safe_name if safe_name.endswith(".txt") else safe_name + ".txt"
         filepath = os.path.join("levels", filename)
 
         with open(filepath, "w") as f:
@@ -263,7 +230,8 @@ class LevelEditor:
         return True
 
     def load_level(self, filename):
-        filepath = os.path.join("levels", filename)
+        safe_name = os.path.basename(filename)
+        filepath = os.path.join("levels", safe_name)
         if not os.path.exists(filepath):
             self.status_message = "Файл не найден!"
             self.status_timer = 60
@@ -281,7 +249,7 @@ class LevelEditor:
                 if x < self.map_width:
                     self.level[y][x] = char
 
-        self.status_message = f"Загружен: {filename}"
+        self.status_message = f"Загружен: {safe_name}"
         self.status_timer = 60
         return True
 
@@ -322,8 +290,7 @@ class LevelEditor:
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     x, y = pygame.mouse.get_pos()
 
-                    # Проверка кнопок действий
-                    if "new" in self.button_rects and self.button_rects["new"].collidepoint(x, y):
+                    if "clear" in self.button_rects and self.button_rects["clear"].collidepoint(x, y):
                         self.clear_level()
                     elif "save" in self.button_rects and self.button_rects["save"].collidepoint(x, y):
                         self.show_save_dialog = True
@@ -337,7 +304,6 @@ class LevelEditor:
                     elif "back" in self.button_rects and self.button_rects["back"].collidepoint(x, y):
                         running = False
                     else:
-                        # Выбор уровня из списка
                         selected = False
                         for i in range(len(self.saved_levels)):
                             key = f"level_{i}"
@@ -348,16 +314,13 @@ class LevelEditor:
                                 selected = True
                                 break
 
-                        # Выбор инструмента (если не выбрали уровень)
                         if not selected:
-                            # Перебираем кнопки инструментов
                             for i in range(len(self.tools)):
                                 key = f"tool_{i}"
                                 if key in self.button_rects and self.button_rects[key].collidepoint(x, y):
                                     self.current_tool = i
                                     break
 
-                        # Рисование на поле (только если клик по полю)
                         field_rect = pygame.Rect(self.field_x, self.field_y, self.map_width * TILE_SIZE,
                                                  self.map_height * TILE_SIZE)
                         if field_rect.collidepoint(x, y):
@@ -376,7 +339,6 @@ class LevelEditor:
                         if 0 <= grid_x < self.map_width and 0 <= grid_y < self.map_height:
                             self.level[grid_y][grid_x] = self.tools[self.current_tool]['char']
 
-            # Диалог сохранения
             if self.show_save_dialog:
                 ok_btn, cancel_btn = self.get_filename_dialog()
                 pygame.display.flip()

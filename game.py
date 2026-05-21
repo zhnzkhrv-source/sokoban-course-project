@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from collections import deque
 from typing import Optional, List, Tuple
 import os
+from constants import *
 
 WALL = '#'
 FLOOR = ' '
@@ -36,6 +37,12 @@ class SokobanGame:
         self.pushes = 0
 
         self.images = self.load_images()
+        self.texture_cache = {}
+
+        # Анимация только для игрока
+        self.anim_progress = 1.0
+        self.anim_start = None
+        self.anim_target = None
 
         self.load_level(level_map)
         self.save_state()
@@ -51,9 +58,19 @@ class SokobanGame:
             if os.path.exists(filepath):
                 try:
                     images[tex] = pygame.image.load(filepath).convert_alpha()
-                except:
-                    pass
+                except pygame.error as e:
+                    print(f"Ошибка загрузки {tex}.png: {e}")
         return images
+
+    def get_scaled_texture(self, name, target_size):
+        if name not in self.images:
+            return None
+        key = (name, target_size)
+        if key not in self.texture_cache:
+            self.texture_cache[key] = pygame.transform.scale(
+                self.images[name], (target_size, target_size)
+            )
+        return self.texture_cache.get(key)
 
     def load_level(self, level_map):
         self.walls.clear()
@@ -80,6 +97,10 @@ class SokobanGame:
                     self.player_pos = (x, y)
                     self.goals.add((x, y))
 
+        self.anim_progress = 1.0
+        self.anim_start = None
+        self.anim_target = None
+
     def get_current_state(self) -> GameState:
         return GameState(self.player_pos, frozenset(self.boxes), self.moves, self.pushes)
 
@@ -88,10 +109,12 @@ class SokobanGame:
         self.boxes = set(state.boxes)
         self.moves = state.moves
         self.pushes = state.pushes
+        self.anim_progress = 1.0
+        self.anim_start = None
+        self.anim_target = None
 
     def save_state(self):
         state = self.get_current_state()
-        # Обрезаем историю после текущего индекса
         self.history = self.history[:self.history_index + 1]
         self.history.append(state)
         self.history_index += 1
@@ -105,6 +128,10 @@ class SokobanGame:
 
     def try_move(self, dx: int, dy: int) -> bool:
         if not self.player_pos:
+            return False
+
+        # Если анимация ещё идёт — не принимаем новые ходы
+        if self.anim_progress < 1.0:
             return False
 
         x, y = self.player_pos
@@ -126,11 +153,18 @@ class SokobanGame:
             if (box_x, box_y) in self.walls or (box_x, box_y) in self.boxes:
                 return False
 
-            # Все проверки пройдены — сохраняем состояние и двигаем
+            # Сохраняем состояние
             self.save_state()
+
+            # Мгновенно двигаем ящик, анимацию только для игрока
             self.boxes.remove((new_x, new_y))
             self.boxes.add((box_x, box_y))
-            self.player_pos = (new_x, new_y)
+
+            # Запускаем анимацию игрока
+            self.anim_progress = 0.0
+            self.anim_start = (x, y)
+            self.anim_target = (new_x, new_y)
+
             self.moves += 1
             self.pushes += 1
             return True
@@ -138,11 +172,26 @@ class SokobanGame:
         # Обычное движение
         elif (new_x, new_y) not in self.walls and (new_x, new_y) not in self.boxes:
             self.save_state()
-            self.player_pos = (new_x, new_y)
+
+            self.anim_progress = 0.0
+            self.anim_start = (x, y)
+            self.anim_target = (new_x, new_y)
+
             self.moves += 1
             return True
 
         return False
+
+    def update_animation(self, dt):
+        """Обновляет анимацию игрока"""
+        if self.anim_progress < 1.0:
+            self.anim_progress += dt * 12.0  # Скорость анимации
+            if self.anim_progress >= 1.0:
+                # Анимация завершена — фиксируем позицию
+                self.player_pos = self.anim_target
+                self.anim_start = None
+                self.anim_target = None
+                self.anim_progress = 1.0
 
     def check_win(self) -> bool:
         return all(box in self.goals for box in self.boxes)
@@ -155,12 +204,19 @@ class SokobanGame:
         available_width = screen_width
 
         if self.width <= 0 or self.height <= 0:
-            return 64
+            return DEFAULT_TILE_SIZE
 
         tile_by_width = available_width // self.width
         tile_by_height = available_height // self.height
         tile_size = min(tile_by_width, tile_by_height)
-        return max(48, min(tile_size, 80))
+        return max(MIN_TILE_SIZE, min(tile_size, MAX_TILE_SIZE))
+
+    def get_animated_pos(self, start, target, progress):
+        if start is None or target is None:
+            return None
+        x = start[0] + (target[0] - start[0]) * progress
+        y = start[1] + (target[1] - start[1]) * progress
+        return (x, y)
 
     def draw(self, screen, font, screen_width, screen_height):
         if self.width == 0 or self.height == 0:
@@ -169,6 +225,17 @@ class SokobanGame:
         tile_size = self.calculate_tile_size(screen_width, screen_height)
         offset_y = 70
         offset_x = (screen_width - (self.width * tile_size)) // 2
+
+        # Определяем позицию игрока для отрисовки
+        if self.anim_progress < 1.0 and self.anim_start is not None:
+            player_draw_pos = self.get_animated_pos(
+                self.anim_start, self.anim_target, self.anim_progress
+            )
+            # Фиксируем логическую позицию игрока для остальной логики
+            player_logic_pos = self.anim_start
+        else:
+            player_draw_pos = self.player_pos
+            player_logic_pos = self.player_pos
 
         for y in range(self.height):
             for x in range(self.width):
@@ -180,56 +247,68 @@ class SokobanGame:
                 )
 
                 # Пол
-                if 'floor' in self.images:
-                    floor_img = pygame.transform.scale(self.images['floor'], (tile_size, tile_size))
+                floor_img = self.get_scaled_texture('floor', tile_size)
+                if floor_img:
                     screen.blit(floor_img, rect)
                 else:
-                    pygame.draw.rect(screen, (240, 240, 240), rect)
-                    pygame.draw.rect(screen, (200, 200, 200), rect, 1)
+                    pygame.draw.rect(screen, WHITE, rect)
+                    pygame.draw.rect(screen, GRAY, rect, 1)
 
                 # Стена
                 if (x, y) in self.walls:
-                    if 'wall' in self.images:
-                        wall_img = pygame.transform.scale(self.images['wall'], (tile_size, tile_size))
+                    wall_img = self.get_scaled_texture('wall', tile_size)
+                    if wall_img:
                         screen.blit(wall_img, rect)
                     else:
-                        pygame.draw.rect(screen, (100, 100, 100), rect)
-                        pygame.draw.rect(screen, (50, 50, 50), rect, 2)
+                        pygame.draw.rect(screen, DARK_GRAY, rect)
+                        pygame.draw.rect(screen, BLACK, rect, 2)
 
                 # Цель
                 if (x, y) in self.goals:
-                    if 'goal' in self.images:
-                        goal_img = pygame.transform.scale(self.images['goal'], (tile_size, tile_size))
+                    goal_img = self.get_scaled_texture('goal', tile_size)
+                    if goal_img:
                         screen.blit(goal_img, rect)
                     else:
-                        pygame.draw.circle(screen, (255, 100, 100), rect.center, tile_size // 4)
+                        pygame.draw.circle(screen, RED, rect.center, tile_size // 4)
 
-                # Ящик
+                # Ящик (без анимации)
                 if (x, y) in self.boxes:
-                    if (x, y) in self.goals and 'box_on_goal' in self.images:
-                        box_img = pygame.transform.scale(self.images['box_on_goal'], (tile_size, tile_size))
-                    elif 'box' in self.images:
-                        box_img = pygame.transform.scale(self.images['box'], (tile_size, tile_size))
+                    if (x, y) in self.goals:
+                        box_img = self.get_scaled_texture('box_on_goal', tile_size)
                     else:
-                        pygame.draw.rect(screen, (139, 69, 19), rect)
-                        pygame.draw.rect(screen, (0, 0, 0), rect, 2)
-                        box_img = None
+                        box_img = self.get_scaled_texture('box', tile_size)
 
                     if box_img:
                         screen.blit(box_img, rect)
-
-                # Игрок (всегда поверх всего)
-                if self.player_pos == (x, y):
-                    if (x, y) in self.goals and 'player_on_goal' in self.images:
-                        player_img = pygame.transform.scale(self.images['player_on_goal'], (tile_size, tile_size))
-                    elif 'player' in self.images:
-                        player_img = pygame.transform.scale(self.images['player'], (tile_size, tile_size))
                     else:
-                        pygame.draw.circle(screen, (0, 0, 255), rect.center, tile_size // 3)
-                        player_img = None
+                        pygame.draw.rect(screen, BROWN, rect)
+                        pygame.draw.rect(screen, BLACK, rect, 2)
 
-                    if player_img:
-                        screen.blit(player_img, rect)
+        # Игрок (рисуется последним, поверх всего)
+        if player_draw_pos:
+            px = player_draw_pos[0] - int(player_draw_pos[0])
+            py = player_draw_pos[1] - int(player_draw_pos[1])
+            player_rect = pygame.Rect(
+                offset_x + (int(player_draw_pos[0]) + px) * tile_size,
+                offset_y + (int(player_draw_pos[1]) + py) * tile_size,
+                tile_size,
+                tile_size
+            )
+
+            player_on_goal = (int(player_logic_pos[0]), int(player_logic_pos[1])) in self.goals
+            if player_on_goal:
+                player_img = self.get_scaled_texture('player_on_goal', tile_size)
+            else:
+                player_img = self.get_scaled_texture('player', tile_size)
+
+            if player_img:
+                screen.blit(player_img, player_rect)
+            else:
+                pygame.draw.circle(screen, BLUE, player_rect.center, tile_size // 3)
+
+    def update(self, dt):
+        self.update_animation(dt)
+
     def get_hint(self) -> Optional[Tuple[int, int]]:
         if len(self.boxes) > 3:
             return None
@@ -239,9 +318,7 @@ class SokobanGame:
         if self.check_win():
             return None
 
-        from collections import deque
         queue = deque([(initial, [])])
-        # visited хранит только (player, boxes) без moves/pushes
         visited = {(initial.player, initial.boxes)}
         directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]
         max_states = 20000
@@ -253,17 +330,16 @@ class SokobanGame:
 
             for dx, dy in directions:
                 new_state = self._apply_move(state, dx, dy)
-                key = (new_state.player, new_state.boxes) if new_state else None
+                if new_state:
+                    key = (new_state.player, new_state.boxes)
+                    if key not in visited:
+                        new_path = path + [(dx, dy)]
 
-                if new_state and key not in visited:
-                    new_path = path + [(dx, dy)]
+                        if all(box in self.goals for box in new_state.boxes):
+                            return new_path[0]
 
-                    # Проверка победы
-                    if all(box in self.goals for box in new_state.boxes):
-                        return new_path[0]
-
-                    visited.add(key)
-                    queue.append((new_state, new_path))
+                        visited.add(key)
+                        queue.append((new_state, new_path))
 
         return None
 
