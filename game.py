@@ -153,10 +153,10 @@ class SokobanGame:
             if (box_x, box_y) in self.walls or (box_x, box_y) in self.boxes:
                 return False
 
-            # Сохраняем состояние
+            # Сохраняем состояние ДО изменения
             self.save_state()
 
-            # Мгновенно двигаем ящик, анимацию только для игрока
+            # Мгновенно двигаем ящик
             self.boxes.remove((new_x, new_y))
             self.boxes.add((box_x, box_y))
 
@@ -185,9 +185,8 @@ class SokobanGame:
     def update_animation(self, dt):
         """Обновляет анимацию игрока"""
         if self.anim_progress < 1.0:
-            self.anim_progress += dt * 12.0  # Скорость анимации
+            self.anim_progress += dt * 12.0
             if self.anim_progress >= 1.0:
-                # Анимация завершена — фиксируем позицию
                 self.player_pos = self.anim_target
                 self.anim_start = None
                 self.anim_target = None
@@ -226,12 +225,10 @@ class SokobanGame:
         offset_y = 70
         offset_x = (screen_width - (self.width * tile_size)) // 2
 
-        # Определяем позицию игрока для отрисовки
         if self.anim_progress < 1.0 and self.anim_start is not None:
             player_draw_pos = self.get_animated_pos(
                 self.anim_start, self.anim_target, self.anim_progress
             )
-            # Фиксируем логическую позицию игрока для остальной логики
             player_logic_pos = self.anim_start
         else:
             player_draw_pos = self.player_pos
@@ -246,7 +243,6 @@ class SokobanGame:
                     tile_size
                 )
 
-                # Пол
                 floor_img = self.get_scaled_texture('floor', tile_size)
                 if floor_img:
                     screen.blit(floor_img, rect)
@@ -254,7 +250,6 @@ class SokobanGame:
                     pygame.draw.rect(screen, WHITE, rect)
                     pygame.draw.rect(screen, GRAY, rect, 1)
 
-                # Стена
                 if (x, y) in self.walls:
                     wall_img = self.get_scaled_texture('wall', tile_size)
                     if wall_img:
@@ -263,7 +258,6 @@ class SokobanGame:
                         pygame.draw.rect(screen, DARK_GRAY, rect)
                         pygame.draw.rect(screen, BLACK, rect, 2)
 
-                # Цель
                 if (x, y) in self.goals:
                     goal_img = self.get_scaled_texture('goal', tile_size)
                     if goal_img:
@@ -271,7 +265,6 @@ class SokobanGame:
                     else:
                         pygame.draw.circle(screen, RED, rect.center, tile_size // 4)
 
-                # Ящик (без анимации)
                 if (x, y) in self.boxes:
                     if (x, y) in self.goals:
                         box_img = self.get_scaled_texture('box_on_goal', tile_size)
@@ -284,7 +277,6 @@ class SokobanGame:
                         pygame.draw.rect(screen, BROWN, rect)
                         pygame.draw.rect(screen, BLACK, rect, 2)
 
-        # Игрок (рисуется последним, поверх всего)
         if player_draw_pos:
             px = player_draw_pos[0] - int(player_draw_pos[0])
             py = player_draw_pos[1] - int(player_draw_pos[1])

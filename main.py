@@ -3,6 +3,7 @@ import sys
 import os
 import json
 import re
+import time
 from constants import *
 
 
@@ -90,7 +91,7 @@ def save_progress(level_index, category="standard"):
         json.dump({"current_level": level_index}, f)
 
 
-def save_stats(level_name, moves, pushes, category="standard"):
+def save_stats(level_name, moves, pushes, elapsed_time, category="standard"):
     os.makedirs("saves", exist_ok=True)
     stats_file = f"saves/stats_{category}.json"
 
@@ -109,16 +110,26 @@ def save_stats(level_name, moves, pushes, category="standard"):
             old['best_moves'] = moves
         if pushes < old.get('best_pushes', 999999):
             old['best_pushes'] = pushes
+        if elapsed_time < old.get('best_time', 999999):
+            old['best_time'] = elapsed_time
         stats[level_name] = old
     else:
         stats[level_name] = {
             'best_moves': moves,
             'best_pushes': pushes,
+            'best_time': elapsed_time,
             'attempts': 1
         }
 
     with open(stats_file, "w") as f:
         json.dump(stats, f, indent=2)
+
+
+def format_time(seconds):
+    """Форматирует время в мм:сс"""
+    minutes = seconds // 60
+    secs = seconds % 60
+    return f"{minutes}:{secs:02d}"
 
 
 def get_level_category(level_num):
@@ -248,7 +259,6 @@ class GameManager:
         return back_rect
 
     def show_custom_levels_select(self):
-        """Показывает список созданных уровней для выбора"""
         self.screen.fill(BG_COLOR)
         title = self.font.render("ВЫБОР СОЗДАННОГО УРОВНЯ", True, TEXT_COLOR)
         self.screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 30))
@@ -258,7 +268,6 @@ class GameManager:
             self.show_message("Нет созданных уровней! Создайте их в редакторе", 90)
             return None, None
 
-        # Загружаем прогресс для созданных уровней
         progress = {}
         progress_file = "saves/custom_progress.json"
         if os.path.exists(progress_file):
@@ -286,9 +295,7 @@ class GameManager:
             y = start_y + row * (btn_h + spacing_y)
             rect = pygame.Rect(x, y, btn_w, btn_h)
 
-            # Получаем имя файла для отображения
             filename = f"Уровень {i + 1}"
-            # Проверяем пройден ли уровень
             is_completed = progress.get(filename, False)
 
             if is_completed:
@@ -300,7 +307,6 @@ class GameManager:
             text = self.small_font.render(filename, True, TEXT_COLOR)
             self.screen.blit(text, (rect.centerx - text.get_width() // 2, rect.centery - 10))
 
-            # Добавляем галочку для пройденных
             if is_completed:
                 check_text = self.small_font.render("✓", True, TEXT_COLOR)
                 self.screen.blit(check_text, (rect.x + 15, rect.centery - 10))
@@ -340,8 +346,11 @@ class GameManager:
         else:
             for level_name, data in sorted(stats.items(), key=lambda x: extract_level_number(x[0])):
                 best_pushes = data.get('best_pushes', '-')
+                best_time = data.get('best_time', '-')
+                if best_time != '-':
+                    best_time = format_time(best_time)
                 text = self.small_font.render(
-                    f"{level_name}: {data.get('best_moves', '-')} ходов, {best_pushes} толчков, {data.get('attempts', 0)} попыток",
+                    f"{level_name}: {data.get('best_moves', '-')} ходов, {best_pushes} толчков, время: {best_time}, {data.get('attempts', 0)} попыток",
                     True, TEXT_COLOR
                 )
                 self.screen.blit(text, (50, y))
@@ -402,6 +411,7 @@ class GameManager:
         hint_status = ""
         win_shown = False
         win_time = 0
+        level_start_time = time.time()
 
         running = True
         while running:
@@ -422,8 +432,12 @@ class GameManager:
                 else:
                     level_display = f"Созданный уровень {level_num}"
 
-                info = self.small_font.render(f"{level_display} | Ходы: {game.moves} | Толчки: {game.pushes}", True,
-                                              TEXT_COLOR)
+                elapsed = int(time.time() - level_start_time)
+                time_display = format_time(elapsed)
+
+                info = self.small_font.render(
+                    f"{level_display} | Ходы: {game.moves} | Толчки: {game.pushes} | Время: {time_display}", True,
+                    TEXT_COLOR)
                 self.screen.blit(info, (self.screen_width - info.get_width() - 10, 10))
 
                 controls = self.small_font.render(
@@ -485,6 +499,7 @@ class GameManager:
                             hint_move = None
                         elif event.key == pygame.K_r:
                             game = SokobanGame(levels[current_level])
+                            level_start_time = time.time()
                             hint_status = ""
                             hint_move = None
                         elif event.key == pygame.K_h:
@@ -501,7 +516,8 @@ class GameManager:
 
                             level_name = f"Level{current_level + 1}" if category == "standard" else f"Уровень {current_level + 1}"
                             stats = game.get_stats()
-                            save_stats(level_name, stats['moves'], stats['pushes'], category)
+                            elapsed = int(time.time() - level_start_time)
+                            save_stats(level_name, stats['moves'], stats['pushes'], elapsed, category)
 
                             if category == "custom":
                                 progress_file = "saves/custom_progress.json"
@@ -516,7 +532,6 @@ class GameManager:
                                 with open(progress_file, "w") as f:
                                     json.dump(progress, f, indent=2)
 
-                            # Красивая табличка победы
                             win_rect = pygame.Rect(
                                 self.screen_width // 2 - 200,
                                 self.screen_height // 2 - 100,
@@ -529,27 +544,27 @@ class GameManager:
                             pygame.draw.rect(self.screen, BTN_COLOR, win_rect.inflate(-8, -8))
 
                             win_text = self.font.render("ПОБЕДА!", True, TEXT_COLOR)
-                            self.screen.blit(win_text, (win_rect.centerx - win_text.get_width() // 2, win_rect.y + 40))
+                            self.screen.blit(win_text, (win_rect.centerx - win_text.get_width() // 2, win_rect.y + 30))
 
                             moves_text = self.small_font.render(f"Ходов: {stats['moves']}", True, TEXT_COLOR)
                             pushes_text = self.small_font.render(f"Толчков: {stats['pushes']}", True, TEXT_COLOR)
-                            self.screen.blit(moves_text, (win_rect.x + 50, win_rect.y + 90))
-                            self.screen.blit(pushes_text, (win_rect.x + 50, win_rect.y + 120))
+                            time_text = self.small_font.render(f"Время: {format_time(elapsed)}", True, TEXT_COLOR)
+                            self.screen.blit(moves_text, (win_rect.x + 50, win_rect.y + 80))
+                            self.screen.blit(pushes_text, (win_rect.x + 50, win_rect.y + 110))
+                            self.screen.blit(time_text, (win_rect.x + 50, win_rect.y + 140))
 
                             continue_text = self.small_font.render("Нажми любую клавишу...", True, GRAY)
                             self.screen.blit(continue_text,
-                                             (win_rect.centerx - continue_text.get_width() // 2, win_rect.y + 160))
+                                             (win_rect.centerx - continue_text.get_width() // 2, win_rect.y + 170))
 
                             pygame.display.flip()
                             pygame.time.wait(2000)
 
-            # Обработка победы после паузы
             if win_shown and not level_completed:
                 if pygame.time.get_ticks() - win_time > 2000:
                     level_completed = True
                     current_level += 1
                     if current_level >= len(levels):
-                        # Красивая табличка "ВСЕ УРОВНИ ПРОЙДЕНЫ"
                         complete_rect = pygame.Rect(
                             self.screen_width // 2 - 250,
                             self.screen_height // 2 - 100,
@@ -589,6 +604,7 @@ class GameManager:
                     else:
                         save_progress(current_level, category)
                         game = SokobanGame(levels[current_level])
+                        level_start_time = time.time()
                         level_completed = False
                         win_shown = False
                         hint_status = ""

@@ -1,9 +1,8 @@
 import pygame
 import os
-from constants import TILE_SIZE, EDITOR_WIDTH, EDITOR_HEIGHT, TOOLBAR_WIDTH
-from constants import WHITE, BLACK, GRAY, DARK_GRAY, BROWN, BLUE, RED, GREEN, YELLOW, PINK, LIGHT_BLUE, ORANGE
-from constants import WALL, FLOOR, PLAYER, BOX, GOAL, BOX_ON_GOAL, PLAYER_ON_GOAL
-
+import time
+from constants import *
+from game import SokobanGame
 
 class LevelEditor:
     def __init__(self, screen):
@@ -12,7 +11,6 @@ class LevelEditor:
         self.font = pygame.font.Font(None, 24)
         self.small_font = pygame.font.Font(None, 18)
 
-        # Инструменты: убрали "Пол", оставили только Ластик
         self.tools = [
             {'key': '1', 'name': 'Стена', 'char': WALL, 'color': DARK_GRAY},
             {'key': '2', 'name': 'Игрок', 'char': PLAYER, 'color': BLUE},
@@ -25,6 +23,7 @@ class LevelEditor:
         self.map_width = 14
         self.map_height = 11
         self.level = [[' ' for _ in range(self.map_width)] for _ in range(self.map_height)]
+        self.goals = set()  # для проверки тупиков
 
         total_width = self.map_width * TILE_SIZE
         self.field_x = (EDITOR_WIDTH - TOOLBAR_WIDTH - total_width) // 2
@@ -38,6 +37,11 @@ class LevelEditor:
         self.status_timer = 0
         self.button_rects = {}
 
+        # Для проверки решаемости
+        self.is_solvable = None
+        self.solvability_message = ""
+        self.solvability_timer = 0
+
         self.load_saved_levels_list()
 
     def load_saved_levels_list(self):
@@ -47,6 +51,77 @@ class LevelEditor:
                 if f.endswith(".txt") and not f.startswith("level"):
                     self.saved_levels.append(f)
         self.saved_levels.sort()
+
+    def update_goals_set(self):
+        """Обновляет множество целей из уровня"""
+        self.goals.clear()
+        for y in range(self.map_height):
+            for x in range(self.map_width):
+                if self.level[y][x] == GOAL or self.level[y][x] == BOX_ON_GOAL or self.level[y][x] == PLAYER_ON_GOAL:
+                    self.goals.add((x, y))
+
+    def is_deadlock_cell(self, x, y):
+        """Проверяет, является ли клетка тупиком для ящика"""
+        self.update_goals_set()
+        if (x, y) in self.goals or self.level[y][x] == GOAL:
+            return False
+
+        # Проверка на угол у стены
+        left_wall = x > 0 and self.level[y][x-1] == WALL
+        right_wall = x < self.map_width - 1 and self.level[y][x+1] == WALL
+        up_wall = y > 0 and self.level[y-1][x] == WALL
+        down_wall = y < self.map_height - 1 and self.level[y+1][x] == WALL
+
+        if (left_wall and up_wall) or (left_wall and down_wall) or (right_wall and up_wall) or (right_wall and down_wall):
+            return True
+        return False
+
+    def draw_deadlock_overlay(self):
+        """Рисует полупрозрачную подсветку тупиков"""
+        s = pygame.Surface((TILE_SIZE, TILE_SIZE))
+        s.set_alpha(100)
+        s.fill(RED)
+
+        for y in range(self.map_height):
+            for x in range(self.map_width):
+                if self.level[y][x] == BOX or self.level[y][x] == FLOOR or self.level[y][x] == ' ':
+                    if self.is_deadlock_cell(x, y):
+                        rect = pygame.Rect(
+                            self.field_x + x * TILE_SIZE,
+                            self.field_y + y * TILE_SIZE,
+                            TILE_SIZE,
+                            TILE_SIZE
+                        )
+                        self.screen.blit(s, rect)
+
+    def check_solvability(self):
+        """Запускает BFS для проверки решаемости уровня"""
+        self.update_goals_set()
+
+        # Создаём временную игру для проверки
+        temp_game = SokobanGame(self.level)
+
+        if len(temp_game.boxes) > 5:
+            self.solvability_message = "Слишком много ящиков (>5) — проверка ограничена"
+            self.solvability_timer = 60
+            return
+
+        solution = temp_game.get_hint()
+
+        if solution:
+            self.is_solvable = True
+            self.solvability_message = "РЕШАЕМ! Уровень проходим."
+        else:
+            self.is_solvable = False
+            self.solvability_message = "НЕРЕШАЕМ! Есть тупики или нет решения."
+
+        self.solvability_timer = 120
+
+    def update_stats(self):
+        self.box_count = sum(row.count(BOX) + row.count(BOX_ON_GOAL) for row in self.level)
+        self.goal_count = sum(row.count(GOAL) + row.count(BOX_ON_GOAL) + row.count(PLAYER_ON_GOAL) for row in self.level)
+        self.player_count = sum(row.count(PLAYER) + row.count(PLAYER_ON_GOAL) for row in self.level)
+        self.is_valid = (self.box_count == self.goal_count and self.player_count == 1)
 
     def draw_tile(self, x, y, char):
         rect = pygame.Rect(self.field_x + x * TILE_SIZE, self.field_y + y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
@@ -76,17 +151,18 @@ class LevelEditor:
         self.screen.fill(WHITE)
 
         title = self.font.render("РЕДАКТОР УРОВНЕЙ", True, BLUE)
-        self.screen.blit(title, (EDITOR_WIDTH // 2 - title.get_width() // 2, 15))
+        self.screen.blit(title, (EDITOR_WIDTH//2 - title.get_width()//2, 15))
 
-        field_rect = pygame.Rect(self.field_x - 3, self.field_y - 3, self.map_width * TILE_SIZE + 6,
-                                 self.map_height * TILE_SIZE + 6)
+        field_rect = pygame.Rect(self.field_x - 3, self.field_y - 3, self.map_width * TILE_SIZE + 6, self.map_height * TILE_SIZE + 6)
         pygame.draw.rect(self.screen, BLUE, field_rect, 2)
 
         for y in range(self.map_height):
             for x in range(self.map_width):
                 self.draw_tile(x, y, self.level[y][x])
-                pygame.draw.rect(self.screen, GRAY,
-                                 (self.field_x + x * TILE_SIZE, self.field_y + y * TILE_SIZE, TILE_SIZE, TILE_SIZE), 1)
+                pygame.draw.rect(self.screen, GRAY, (self.field_x + x * TILE_SIZE, self.field_y + y * TILE_SIZE, TILE_SIZE, TILE_SIZE), 1)
+
+        # Подсветка тупиков
+        self.draw_deadlock_overlay()
 
         panel_x = EDITOR_WIDTH - TOOLBAR_WIDTH - 15
         panel_w = TOOLBAR_WIDTH
@@ -130,21 +206,34 @@ class LevelEditor:
 
         y += 15
 
-        box_count = sum(row.count(BOX) + row.count(BOX_ON_GOAL) for row in self.level)
-        goal_count = sum(row.count(GOAL) + row.count(BOX_ON_GOAL) + row.count(PLAYER_ON_GOAL) for row in self.level)
-        player_count = sum(row.count(PLAYER) + row.count(PLAYER_ON_GOAL) for row in self.level)
-        is_valid = (box_count == goal_count and player_count == 1)
-
-        stat_text = f"Ящики:{box_count} Цели:{goal_count} Игрок:{player_count}"
+        self.update_stats()
+        stat_text = f"Ящики:{self.box_count} Цели:{self.goal_count} Игрок:{self.player_count}"
         self.screen.blit(self.small_font.render(stat_text, True, BLACK), (panel_x + 15, y))
         y += 25
 
-        if is_valid:
+        if self.is_valid:
             self.screen.blit(self.font.render("ГОТОВО", True, GREEN), (panel_x + 15, y))
         else:
             self.screen.blit(self.font.render("НЕВЕРНО", True, RED), (panel_x + 15, y))
 
-        y += 55
+        y += 15
+
+        # Кнопка проверки решаемости
+        btn_check = pygame.Rect(panel_x + 15, y, panel_w - 30, 35)
+        pygame.draw.rect(self.screen, ORANGE, btn_check)
+        pygame.draw.rect(self.screen, BLACK, btn_check, 2)
+        self.screen.blit(self.font.render("ПРОВЕРИТЬ РЕШАЕМОСТЬ", True, BLACK), (btn_check.x + 25, btn_check.y + 8))
+        self.button_rects["check"] = btn_check
+        y += 45
+
+        if self.solvability_timer > 0:
+            msg_color = GREEN if "РЕШАЕМ" in self.solvability_message else RED
+            msg_surface = self.small_font.render(self.solvability_message, True, msg_color)
+            self.screen.blit(msg_surface, (panel_x + 15, y))
+            self.solvability_timer -= 1
+            y += 25
+
+        y += 10
 
         btn_clear = pygame.Rect(panel_x + 15, y, panel_w - 30, 42)
         btn_save = pygame.Rect(panel_x + 15, y + 50, panel_w - 30, 42)
@@ -172,13 +261,12 @@ class LevelEditor:
         self.button_rects["back"] = btn_back
 
         if self.status_message and self.status_timer > 0:
-            status_surface = self.small_font.render(self.status_message, True,
-                                                    RED if "невалиден" in self.status_message else GREEN)
+            status_surface = self.small_font.render(self.status_message, True, RED if "невалиден" in self.status_message else GREEN)
             self.screen.blit(status_surface, (panel_x + 15, EDITOR_HEIGHT - 45))
             self.status_timer -= 1
 
     def get_filename_dialog(self):
-        dialog_rect = pygame.Rect(EDITOR_WIDTH // 2 - 200, EDITOR_HEIGHT // 2 - 100, 400, 200)
+        dialog_rect = pygame.Rect(EDITOR_WIDTH//2 - 200, EDITOR_HEIGHT//2 - 100, 400, 200)
         pygame.draw.rect(self.screen, WHITE, dialog_rect)
         pygame.draw.rect(self.screen, BLACK, dialog_rect, 3)
 
@@ -249,12 +337,19 @@ class LevelEditor:
                 if x < self.map_width:
                     self.level[y][x] = char
 
+        self.is_solvable = None
+        self.solvability_message = ""
+        self.solvability_timer = 0
+
         self.status_message = f"Загружен: {safe_name}"
         self.status_timer = 60
         return True
 
     def clear_level(self):
         self.level = [[' ' for _ in range(self.map_width)] for _ in range(self.map_height)]
+        self.is_solvable = None
+        self.solvability_message = ""
+        self.solvability_timer = 0
         self.status_message = "Поле очищено"
         self.status_timer = 60
 
@@ -301,6 +396,13 @@ class LevelEditor:
                         else:
                             self.status_message = "Выберите уровень из списка!"
                             self.status_timer = 60
+                    elif "check" in self.button_rects and self.button_rects["check"].collidepoint(x, y):
+                        self.update_stats()
+                        if self.is_valid:
+                            self.check_solvability()
+                        else:
+                            self.solvability_message = "НЕВЕРНО! Ящики ≠ цели или нет игрока."
+                            self.solvability_timer = 90
                     elif "back" in self.button_rects and self.button_rects["back"].collidepoint(x, y):
                         running = False
                     else:
@@ -321,23 +423,27 @@ class LevelEditor:
                                     self.current_tool = i
                                     break
 
-                        field_rect = pygame.Rect(self.field_x, self.field_y, self.map_width * TILE_SIZE,
-                                                 self.map_height * TILE_SIZE)
+                        field_rect = pygame.Rect(self.field_x, self.field_y, self.map_width * TILE_SIZE, self.map_height * TILE_SIZE)
                         if field_rect.collidepoint(x, y):
                             grid_x = (x - self.field_x) // TILE_SIZE
                             grid_y = (y - self.field_y) // TILE_SIZE
                             if 0 <= grid_x < self.map_width and 0 <= grid_y < self.map_height:
                                 self.level[grid_y][grid_x] = self.tools[self.current_tool]['char']
+                                self.is_solvable = None
+                                self.solvability_message = ""
+                                self.solvability_timer = 0
 
                 elif event.type == pygame.MOUSEMOTION and pygame.mouse.get_pressed()[0]:
                     x, y = pygame.mouse.get_pos()
-                    field_rect = pygame.Rect(self.field_x, self.field_y, self.map_width * TILE_SIZE,
-                                             self.map_height * TILE_SIZE)
+                    field_rect = pygame.Rect(self.field_x, self.field_y, self.map_width * TILE_SIZE, self.map_height * TILE_SIZE)
                     if field_rect.collidepoint(x, y):
                         grid_x = (x - self.field_x) // TILE_SIZE
                         grid_y = (y - self.field_y) // TILE_SIZE
                         if 0 <= grid_x < self.map_width and 0 <= grid_y < self.map_height:
                             self.level[grid_y][grid_x] = self.tools[self.current_tool]['char']
+                            self.is_solvable = None
+                            self.solvability_message = ""
+                            self.solvability_timer = 0
 
             if self.show_save_dialog:
                 ok_btn, cancel_btn = self.get_filename_dialog()
