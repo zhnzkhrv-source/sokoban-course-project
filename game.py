@@ -5,16 +5,8 @@ from typing import Optional, List, Tuple
 import os
 from constants import *
 
-WALL = '#'
-FLOOR = ' '
-PLAYER = '@'
-BOX = '$'
-GOAL = '.'
-BOX_ON_GOAL = '*'
-PLAYER_ON_GOAL = '+'
 
-
-@dataclass(frozen=True)
+@dataclass(frozen=True) # неизменяемое состояние игры для системы отмены ходов и BFS-поиска решения
 class GameState:
     player: Tuple[int, int]
     boxes: frozenset
@@ -23,7 +15,7 @@ class GameState:
 
 
 class SokobanGame:
-    def __init__(self, level_map):
+    def __init__(self, level_map): # инициализация основного игрового объекта
         self.walls = set()
         self.goals = set()
         self.width = 0
@@ -47,7 +39,7 @@ class SokobanGame:
         self.load_level(level_map)
         self.save_state()
 
-    def load_images(self):
+    def load_images(self): # загрузка текстурных изображений из папки images
         images = {}
         img_dir = "images"
         if not os.path.exists(img_dir):
@@ -62,7 +54,7 @@ class SokobanGame:
                     print(f"Ошибка загрузки {tex}.png: {e}")
         return images
 
-    def get_scaled_texture(self, name, target_size):
+    def get_scaled_texture(self, name, target_size): # возврат текстуры, масштабированной под нужный размер карты, с кешированием
         if name not in self.images:
             return None
         key = (name, target_size)
@@ -72,7 +64,7 @@ class SokobanGame:
             )
         return self.texture_cache.get(key)
 
-    def load_level(self, level_map):
+    def load_level(self, level_map): # загрузка карты уровня из массива строк в игровые структуры данных
         self.walls.clear()
         self.goals.clear()
         self.boxes.clear()
@@ -101,10 +93,10 @@ class SokobanGame:
         self.anim_start = None
         self.anim_target = None
 
-    def get_current_state(self) -> GameState:
+    def get_current_state(self) -> GameState: # возврат неизменяемого снимка текущего состояния игры для сохранения в истории или BFS
         return GameState(self.player_pos, frozenset(self.boxes), self.moves, self.pushes)
 
-    def restore_state(self, state: GameState):
+    def restore_state(self, state: GameState): # восстановление состояния игры из объекта GameState (используется для отмены хода)
         self.player_pos = state.player
         self.boxes = set(state.boxes)
         self.moves = state.moves
@@ -113,20 +105,20 @@ class SokobanGame:
         self.anim_start = None
         self.anim_target = None
 
-    def save_state(self):
+    def save_state(self): # сохранение текущего состояния игры в истории для последующей отмены хода
         state = self.get_current_state()
         self.history = self.history[:self.history_index + 1]
         self.history.append(state)
         self.history_index += 1
 
-    def undo(self) -> bool:
+    def undo(self) -> bool: # отмена последнего хода, возвращая игру к предыдущему состоянию
         if self.history_index > 0:
             self.history_index -= 1
             self.restore_state(self.history[self.history_index])
             return True
         return False
 
-    def try_move(self, dx: int, dy: int) -> bool:
+    def try_move(self, dx: int, dy: int) -> bool: # обработка попытки перемещения игрока, включая толкание ящиков и анимацию
         if not self.player_pos:
             return False
 
@@ -182,8 +174,7 @@ class SokobanGame:
 
         return False
 
-    def update_animation(self, dt):
-        """Обновляет анимацию игрока"""
+    def update_animation(self, dt): # обновляет анимацию игрока
         if self.anim_progress < 1.0:
             self.anim_progress += dt * 12.0
             if self.anim_progress >= 1.0:
@@ -192,13 +183,13 @@ class SokobanGame:
                 self.anim_target = None
                 self.anim_progress = 1.0
 
-    def check_win(self) -> bool:
+    def check_win(self) -> bool: # проверка: все ли ящики находятся на целях (победа)
         return all(box in self.goals for box in self.boxes)
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> dict: # возврат словаря с текущей статистикой игры (кол-во ходов и толчков)
         return {'moves': self.moves, 'pushes': self.pushes}
 
-    def calculate_tile_size(self, screen_width, screen_height, ui_top=70, ui_bottom=90):
+    def calculate_tile_size(self, screen_width, screen_height, ui_top=70, ui_bottom=90): # вычисление оптимального размера клетки в пикселях в зависимости от размеров уровня и экрана
         available_height = screen_height - ui_top - ui_bottom
         available_width = screen_width
 
@@ -210,14 +201,14 @@ class SokobanGame:
         tile_size = min(tile_by_width, tile_by_height)
         return max(MIN_TILE_SIZE, min(tile_size, MAX_TILE_SIZE))
 
-    def get_animated_pos(self, start, target, progress):
+    def get_animated_pos(self, start, target, progress): # вычисление промежуточной позиции игрока во время анимации движения
         if start is None or target is None:
             return None
         x = start[0] + (target[0] - start[0]) * progress
         y = start[1] + (target[1] - start[1]) * progress
         return (x, y)
 
-    def draw(self, screen, font, screen_width, screen_height):
+    def draw(self, screen, font, screen_width, screen_height): # отрисовка игрового поля: стены, цели, ящики, игрок
         if self.width == 0 or self.height == 0:
             return
 
@@ -298,10 +289,10 @@ class SokobanGame:
             else:
                 pygame.draw.circle(screen, BLUE, player_rect.center, tile_size // 3)
 
-    def update(self, dt):
+    def update(self, dt): # обновление состояния анимации игрока, передавая время, прошедшее с последнего кадра
         self.update_animation(dt)
 
-    def get_hint(self) -> Optional[Tuple[int, int]]:
+    def get_hint(self) -> Optional[Tuple[int, int]]: # поиск подсказки с помощью bfs для уровней с не более чем 3 ящиками
         if len(self.boxes) > 3:
             return None
 
@@ -335,7 +326,7 @@ class SokobanGame:
 
         return None
 
-    def _apply_move(self, state: GameState, dx: int, dy: int) -> Optional[GameState]:
+    def _apply_move(self, state: GameState, dx: int, dy: int) -> Optional[GameState]: # применение хода к заданному состоянию (без изменения текущего) и возвращает новое состояние для bfs
         player = state.player
         boxes = set(state.boxes)
         new_x, new_y = player[0] + dx, player[1] + dy

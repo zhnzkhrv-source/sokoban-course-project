@@ -7,12 +7,12 @@ import time
 from constants import *
 
 
-def extract_level_number(name):
+def extract_level_number(name): # извлекает номер уровня из имени файла для сортировки
     numbers = re.findall(r'\d+', name)
     return int(numbers[0]) if numbers else 999
 
 
-def load_all_levels_from_file(filename="levels.txt"):
+def load_all_levels_from_file(filename="levels.txt"): # загружает все стандартные уровни из одного файла levels.txt
     if not os.path.exists(filename):
         print(f"Ошибка: файл {filename} не найден!")
         return []
@@ -47,7 +47,7 @@ def load_all_levels_from_file(filename="levels.txt"):
     return levels
 
 
-def load_custom_levels():
+def load_custom_levels(): # загружает пользовательские уровни из папки levels
     if not os.path.exists("levels"):
         os.makedirs("levels")
         return []
@@ -70,7 +70,7 @@ def load_custom_levels():
     return custom_levels
 
 
-def load_progress(category="standard"):
+def load_progress(category="standard"):  # загружает сохраненный прогресс (номер текущего уровня) для указанной категории
     os.makedirs("saves", exist_ok=True)
     progress_file = f"saves/progress_{category}.json"
     if not os.path.exists(progress_file):
@@ -84,14 +84,14 @@ def load_progress(category="standard"):
         return 0
 
 
-def save_progress(level_index, category="standard"):
+def save_progress(level_index, category="standard"): # сохраняет текущий номер уровня в файл прогресса указанной категории
     os.makedirs("saves", exist_ok=True)
     progress_file = f"saves/progress_{category}.json"
     with open(progress_file, "w") as f:
         json.dump({"current_level": level_index}, f)
 
 
-def save_stats(level_name, moves, pushes, elapsed_time, category="standard"):
+def save_stats(level_name, moves, pushes, elapsed_time, category="standard"): # сохраняет/обновляет статистику прохождения уровня (лучш кол-во ходов, кол-во толчков, время и кол-во попыток)
     os.makedirs("saves", exist_ok=True)
     stats_file = f"saves/stats_{category}.json"
 
@@ -125,14 +125,13 @@ def save_stats(level_name, moves, pushes, elapsed_time, category="standard"):
         json.dump(stats, f, indent=2)
 
 
-def format_time(seconds):
-    """Форматирует время в мм:сс"""
+def format_time(seconds): # форматирует время в мм:сс
     minutes = seconds // 60
     secs = seconds % 60
     return f"{minutes}:{secs:02d}"
 
 
-def get_level_category(level_num):
+def get_level_category(level_num): # определяет сложность уровня по номеру и возвращает название + цвет для отображения в интерфейсе
     if level_num <= 5:
         return "ЛЁГКИЙ", CAT_EASY
     elif level_num <= 10:
@@ -141,7 +140,7 @@ def get_level_category(level_num):
         return "СЛОЖНЫЙ", CAT_HARD
 
 
-class GameManager:
+class GameManager: # инициализация главного менеджера игры - создает окно, настраивает pygame
     def __init__(self):
         pygame.init()
 
@@ -162,18 +161,18 @@ class GameManager:
         self.message = ""
         self.message_timer = 0
 
-    def toggle_fullscreen(self):
+    def toggle_fullscreen(self): # переключает режим окна между оконным и полноэкранным
         self.fullscreen = not self.fullscreen
         if self.fullscreen:
             self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.FULLSCREEN)
         else:
             self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
 
-    def show_message(self, text, duration=60):
+    def show_message(self, text, duration=60): # показывает временное сообщение на экране
         self.message = text
         self.message_timer = duration
 
-    def draw_message(self):
+    def draw_message(self): # отрисовывает временное сообщение внизу экрана и управляет его таймером
         if self.message and self.message_timer > 0:
             msg_surface = self.font.render(self.message, True, RED)
             self.screen.blit(msg_surface,
@@ -182,7 +181,7 @@ class GameManager:
         else:
             self.message = ""
 
-    def show_menu(self):
+    def show_menu(self): # главное меню с кнопками
         self.screen.fill(BG_COLOR)
 
         title = self.title_font.render("SOKOBAN", True, TEXT_COLOR)
@@ -213,7 +212,7 @@ class GameManager:
         self.draw_message()
         pygame.display.flip()
 
-    def show_level_select(self):
+    def show_level_select(self): # экран выбора стандартных уровней (1-15)
         self.screen.fill(BG_COLOR)
         title = self.font.render("ВЫБОР УРОВНЯ", True, TEXT_COLOR)
         self.screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 30))
@@ -258,7 +257,7 @@ class GameManager:
         pygame.display.flip()
         return back_rect
 
-    def show_custom_levels_select(self):
+    def show_custom_levels_select(self): # экран выбора пользовательских уровней, созданных в редакторе
         self.screen.fill(BG_COLOR)
         title = self.font.render("ВЫБОР СОЗДАННОГО УРОВНЯ", True, TEXT_COLOR)
         self.screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 30))
@@ -267,6 +266,10 @@ class GameManager:
         if not custom_levels:
             self.show_message("Нет созданных уровней! Создайте их в редакторе", 90)
             return None, None
+
+        # Получаем список имён файлов
+        files = [f for f in os.listdir("levels") if f.endswith(".txt") and not f.startswith("level")]
+        files.sort()
 
         progress = {}
         progress_file = "saves/custom_progress.json"
@@ -295,8 +298,9 @@ class GameManager:
             y = start_y + row * (btn_h + spacing_y)
             rect = pygame.Rect(x, y, btn_w, btn_h)
 
-            filename = f"Уровень {i + 1}"
-            is_completed = progress.get(filename, False)
+            # ПОКАЗЫВАЕМ РЕАЛЬНОЕ ИМЯ ФАЙЛА
+            display_name = files[i].replace(".txt", "") if i < len(files) else f"Уровень {i + 1}"
+            is_completed = progress.get(display_name, False)
 
             if is_completed:
                 pygame.draw.rect(self.screen, GREEN, rect)
@@ -304,14 +308,14 @@ class GameManager:
                 pygame.draw.rect(self.screen, BTN_COLOR, rect)
             pygame.draw.rect(self.screen, BORDER_COLOR, rect, 2)
 
-            text = self.small_font.render(filename, True, TEXT_COLOR)
+            text = self.small_font.render(display_name, True, TEXT_COLOR)
             self.screen.blit(text, (rect.centerx - text.get_width() // 2, rect.centery - 10))
 
             if is_completed:
                 check_text = self.small_font.render("✓", True, TEXT_COLOR)
                 self.screen.blit(check_text, (rect.x + 15, rect.centery - 10))
 
-            level_buttons.append((rect, i, filename))
+            level_buttons.append((rect, i, display_name))
 
         back_rect = pygame.Rect(self.screen_width // 2 - 100, self.screen_height - 80, 200, 50)
         pygame.draw.rect(self.screen, RED, back_rect)
@@ -323,7 +327,7 @@ class GameManager:
         pygame.display.flip()
         return level_buttons, back_rect
 
-    def show_stats(self, category="standard"):
+    def show_stats(self, category="standard"): # статистика прохождения для выбранной категории (стандартные или созданные уровни)
         self.screen.fill(BG_COLOR)
 
         category_names = {"standard": "СТАНДАРТНЫЕ УРОВНИ", "custom": "СОЗДАННЫЕ УРОВНИ"}
@@ -392,7 +396,7 @@ class GameManager:
         pygame.display.flip()
         return back_rect, std_rect, cust_rect
 
-    def run_game(self, levels, category="standard", category_name="", start_level=-1):
+    def run_game(self, levels, category="standard", category_name="", start_level=-1): # главный игровой цикл - обрабатывает ввод, анимацию, проверку победы, переход между уровнями
         if not levels:
             self.show_message("Нет уровней!", 90)
             return "menu"
@@ -526,8 +530,8 @@ class GameManager:
                                     try:
                                         with open(progress_file, "r") as f:
                                             progress = json.load(f)
-                                    except:
-                                        pass
+                                    except (json.JSONDecodeError, OSError) as e:
+                                        print(f"Ошибка загрузки прогресса: {e}")
                                 progress[level_name] = True
                                 with open(progress_file, "w") as f:
                                     json.dump(progress, f, indent=2)
@@ -558,7 +562,6 @@ class GameManager:
                                              (win_rect.centerx - continue_text.get_width() // 2, win_rect.y + 170))
 
                             pygame.display.flip()
-                            pygame.time.wait(2000)
 
             if win_shown and not level_completed:
                 if pygame.time.get_ticks() - win_time > 2000:
@@ -616,12 +619,12 @@ class GameManager:
 
         return "menu"
 
-    def run_editor(self):
+    def run_editor(self): # запускает редактор уровней из главного экрана
         from editor import LevelEditor
         editor = LevelEditor(self.screen)
         return editor.run()
 
-    def run(self):
+    def run(self): # управление переключением между экранами приложения
         standard_levels = load_all_levels_from_file("levels.txt")
 
         while self.running:
@@ -691,7 +694,7 @@ class GameManager:
                                             waiting = False
                                             self.state = "menu"
                                             break
-                        pygame.time.wait(50)
+                        self.clock.tick(60)
 
             elif self.state == "select":
                 back_rect = self.show_level_select()

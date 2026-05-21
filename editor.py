@@ -4,7 +4,7 @@ import time
 from constants import *
 from game import SokobanGame
 
-class LevelEditor:
+class LevelEditor: # инициализация редактора уровней - интерфейс для рисования карт
     def __init__(self, screen):
         self.screen = screen
         self.clock = pygame.time.Clock()
@@ -44,7 +44,7 @@ class LevelEditor:
 
         self.load_saved_levels_list()
 
-    def load_saved_levels_list(self):
+    def load_saved_levels_list(self): # список пользовательских уровней в редакторе
         self.saved_levels = []
         if os.path.exists("levels"):
             for f in os.listdir("levels"):
@@ -52,16 +52,14 @@ class LevelEditor:
                     self.saved_levels.append(f)
         self.saved_levels.sort()
 
-    def update_goals_set(self):
-        """Обновляет множество целей из уровня"""
+    def update_goals_set(self): # обновление множества целей из уровня
         self.goals.clear()
         for y in range(self.map_height):
             for x in range(self.map_width):
                 if self.level[y][x] == GOAL or self.level[y][x] == BOX_ON_GOAL or self.level[y][x] == PLAYER_ON_GOAL:
                     self.goals.add((x, y))
 
-    def is_deadlock_cell(self, x, y):
-        """Проверяет, является ли клетка тупиком для ящика"""
+    def is_deadlock_cell(self, x, y): # проверка - является ли клетка тупиком для ящика
         self.update_goals_set()
         if (x, y) in self.goals or self.level[y][x] == GOAL:
             return False
@@ -76,8 +74,7 @@ class LevelEditor:
             return True
         return False
 
-    def draw_deadlock_overlay(self):
-        """Рисует полупрозрачную подсветку тупиков"""
+    def draw_deadlock_overlay(self): # полупрозрачная подсветка тупиков
         s = pygame.Surface((TILE_SIZE, TILE_SIZE))
         s.set_alpha(100)
         s.fill(RED)
@@ -94,8 +91,7 @@ class LevelEditor:
                         )
                         self.screen.blit(s, rect)
 
-    def check_solvability(self):
-        """Запускает BFS для проверки решаемости уровня"""
+    def check_solvability(self): #  BFS для проверки решаемости уровня
         self.update_goals_set()
 
         # Создаём временную игру для проверки
@@ -117,13 +113,13 @@ class LevelEditor:
 
         self.solvability_timer = 120
 
-    def update_stats(self):
+    def update_stats(self): # подсчет ключевых элементов уровня для проверки валидности
         self.box_count = sum(row.count(BOX) + row.count(BOX_ON_GOAL) for row in self.level)
         self.goal_count = sum(row.count(GOAL) + row.count(BOX_ON_GOAL) + row.count(PLAYER_ON_GOAL) for row in self.level)
         self.player_count = sum(row.count(PLAYER) + row.count(PLAYER_ON_GOAL) for row in self.level)
         self.is_valid = (self.box_count == self.goal_count and self.player_count == 1)
 
-    def draw_tile(self, x, y, char):
+    def draw_tile(self, x, y, char): # отрисовка одной клетки в редакторе в зависимости от типа тайла
         rect = pygame.Rect(self.field_x + x * TILE_SIZE, self.field_y + y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
 
         if char == WALL:
@@ -147,7 +143,7 @@ class LevelEditor:
             pygame.draw.rect(self.screen, WHITE, rect)
             pygame.draw.rect(self.screen, GRAY, rect, 1)
 
-    def draw(self):
+    def draw(self): # интерфейс редактора уровней
         self.screen.fill(WHITE)
 
         title = self.font.render("РЕДАКТОР УРОВНЕЙ", True, BLUE)
@@ -265,7 +261,7 @@ class LevelEditor:
             self.screen.blit(status_surface, (panel_x + 15, EDITOR_HEIGHT - 45))
             self.status_timer -= 1
 
-    def get_filename_dialog(self):
+    def get_filename_dialog(self): # диалоговое овно для ввода имени файла при сохранении уровня
         dialog_rect = pygame.Rect(EDITOR_WIDTH//2 - 200, EDITOR_HEIGHT//2 - 100, 400, 200)
         pygame.draw.rect(self.screen, WHITE, dialog_rect)
         pygame.draw.rect(self.screen, BLACK, dialog_rect, 3)
@@ -293,12 +289,31 @@ class LevelEditor:
 
         return ok_btn, cancel_btn
 
-    def save_level(self, name):
+    def save_level(self, name): # сохранение текущего уровня в файл с проверкой безопасности и образкой пустых клеток
         safe_name = os.path.basename(name)
         if not safe_name or safe_name.startswith('.'):
             self.status_message = "Недопустимое имя файла!"
             self.status_timer = 60
             return False
+
+        # Обрезаем пустые строки снизу
+        while self.map_height > 0 and all(cell == ' ' for cell in self.level[-1]):
+            self.level.pop()
+            self.map_height -= 1
+
+        # Обрезаем пустые колонки справа
+        if self.map_height > 0:
+            while self.map_width > 0 and all(self.level[y][self.map_width - 1] == ' ' for y in range(self.map_height)):
+                for y in range(self.map_height):
+                    self.level[y].pop()
+                self.map_width -= 1
+
+        # Обрезаем пустые колонки СЛЕВА
+        if self.map_height > 0:
+            while self.map_width > 0 and all(self.level[y][0] == ' ' for y in range(self.map_height)):
+                for y in range(self.map_height):
+                    self.level[y].pop(0)
+                self.map_width -= 1
 
         if not os.path.exists("levels"):
             os.makedirs("levels")
@@ -317,7 +332,7 @@ class LevelEditor:
         self.load_saved_levels_list()
         return True
 
-    def load_level(self, filename):
+    def load_level(self, filename): # загрузка выбранного пользовательского уровня для редактирования
         safe_name = os.path.basename(filename)
         filepath = os.path.join("levels", safe_name)
         if not os.path.exists(filepath):
@@ -345,7 +360,7 @@ class LevelEditor:
         self.status_timer = 60
         return True
 
-    def clear_level(self):
+    def clear_level(self): # очищает все поле редактора, заполняя его полом (пробелами)
         self.level = [[' ' for _ in range(self.map_width)] for _ in range(self.map_height)]
         self.is_solvable = None
         self.solvability_message = ""
@@ -353,7 +368,7 @@ class LevelEditor:
         self.status_message = "Поле очищено"
         self.status_timer = 60
 
-    def run(self):
+    def run(self): # главный цикл редактора - обработка ввода, рисования, диалогов, переходов между состояниями
         running = True
 
         while running:

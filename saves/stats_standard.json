@@ -26,13 +26,15 @@
   },
   "Level6": {
     "best_moves": 7,
-    "attempts": 4,
-    "best_pushes": 4
+    "attempts": 5,
+    "best_pushes": 4,
+    "best_time": 3
   },
   "Level7": {
     "best_moves": 32,
-    "attempts": 4,
-    "best_pushes": 9
+    "attempts": 5,
+    "best_pushes": 9,
+    "best_time": 11
   },
   "Level8": {
     "best_moves": 5,
@@ -78,7 +80,7 @@
   },
   "Level15": {
     "best_moves": 43,
-    "attempts": 6,
+    "attempts": 7,
     "best_pushes": 12,
     "best_time": 17
   }
