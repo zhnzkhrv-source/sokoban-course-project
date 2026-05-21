@@ -38,50 +38,50 @@
   },
   "Level8": {
     "best_moves": 5,
-    "attempts": 7,
+    "attempts": 8,
     "best_pushes": 4,
     "best_time": 2
   },
   "Level9": {
     "best_moves": 11,
-    "attempts": 7,
+    "attempts": 8,
     "best_pushes": 4,
     "best_time": 4
   },
   "Level10": {
     "best_moves": 21,
-    "attempts": 7,
+    "attempts": 8,
     "best_pushes": 7,
     "best_time": 6
   },
   "Level11": {
     "best_moves": 13,
-    "attempts": 8,
+    "attempts": 9,
     "best_pushes": 3,
-    "best_time": 7
+    "best_time": 4
   },
   "Level12": {
     "best_moves": 34,
-    "attempts": 8,
+    "attempts": 9,
     "best_pushes": 10,
-    "best_time": 24
+    "best_time": 12
   },
   "Level13": {
     "best_moves": 15,
-    "attempts": 7,
+    "attempts": 8,
     "best_pushes": 5,
     "best_time": 5
   },
   "Level14": {
     "best_moves": 22,
-    "attempts": 5,
+    "attempts": 6,
     "best_pushes": 9,
-    "best_time": 10
+    "best_time": 7
   },
   "Level15": {
-    "best_moves": 43,
-    "attempts": 7,
+    "best_moves": 41,
+    "attempts": 8,
     "best_pushes": 12,
-    "best_time": 17
+    "best_time": 16
   }
 }
