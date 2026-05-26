@@ -5,7 +5,7 @@ from constants import *
 from game import SokobanGame
 
 
-class LevelEditor:
+class LevelEditor: # инициализация редактора уровней - интерфейс для рисования карт
     def __init__(self, screen):
         self.screen = screen
         self.clock = pygame.time.Clock()
@@ -26,7 +26,7 @@ class LevelEditor:
         self.level = [[' ' for _ in range(self.map_width)] for _ in range(self.map_height)]
         self.goals = set()
 
-        # Размеры под 800x600
+        # размеры под 800x600
         TILE_SIZE = 35
         TOOLBAR_WIDTH = 200
         SCREEN_WIDTH = 800
@@ -50,7 +50,7 @@ class LevelEditor:
 
         self.load_saved_levels_list()
 
-    def load_saved_levels_list(self):
+    def load_saved_levels_list(self): # загрузка списка пользовательских уровней в редакторе
         self.saved_levels = []
         if os.path.exists("levels"):
             for f in os.listdir("levels"):
@@ -58,14 +58,14 @@ class LevelEditor:
                     self.saved_levels.append(f)
         self.saved_levels.sort()
 
-    def update_goals_set(self):
+    def update_goals_set(self): # обновление множества позиций целей на основе текущего состояния уровня
         self.goals.clear()
         for y in range(self.map_height):
             for x in range(self.map_width):
                 if self.level[y][x] == GOAL or self.level[y][x] == BOX_ON_GOAL or self.level[y][x] == PLAYER_ON_GOAL:
                     self.goals.add((x, y))
 
-    def is_deadlock_cell(self, x, y):
+    def is_deadlock_cell(self, x, y): # проверка - является ли клетка тупиком для ящика
         self.update_goals_set()
         if (x, y) in self.goals or self.level[y][x] == GOAL:
             return False
@@ -80,8 +80,7 @@ class LevelEditor:
             return True
         return False
 
-    def draw_deadlock_overlay(self):
-        TILE_SIZE = 35
+    def draw_deadlock_overlay(self): # создание красной полупрозрачной поверхности для подсветки тупиковых клеток
         s = pygame.Surface((TILE_SIZE, TILE_SIZE))
         s.set_alpha(100)
         s.fill(RED)
@@ -98,7 +97,7 @@ class LevelEditor:
                         )
                         self.screen.blit(s, rect)
 
-    def check_solvability(self):
+    def check_solvability(self): # проверка - можно ли решить текущий уровень в редакторе
         self.update_goals_set()
         temp_game = SokobanGame(self.level)
 
@@ -118,15 +117,14 @@ class LevelEditor:
 
         self.solvability_timer = 90
 
-    def update_stats(self):
+    def update_stats(self): # подсчитывает ключевые элементы уровня дл проверки валидности
         self.box_count = sum(row.count(BOX) + row.count(BOX_ON_GOAL) for row in self.level)
         self.goal_count = sum(
             row.count(GOAL) + row.count(BOX_ON_GOAL) + row.count(PLAYER_ON_GOAL) for row in self.level)
         self.player_count = sum(row.count(PLAYER) + row.count(PLAYER_ON_GOAL) for row in self.level)
         self.is_valid = (self.box_count == self.goal_count and self.player_count == 1)
 
-    def draw_tile(self, x, y, char):
-        TILE_SIZE = 35
+    def draw_tile(self, x, y, char): # отрисовка одной клетки в редакторе в зависимости от типа тайла
         rect = pygame.Rect(self.field_x + x * TILE_SIZE, self.field_y + y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
 
         if char == WALL:
@@ -150,12 +148,7 @@ class LevelEditor:
             pygame.draw.rect(self.screen, WHITE, rect)
             pygame.draw.rect(self.screen, GRAY, rect, 1)
 
-    def draw(self):
-        TILE_SIZE = 35
-        TOOLBAR_WIDTH = 200
-        SCREEN_WIDTH = 800
-        SCREEN_HEIGHT = 600
-
+    def draw(self):  # отрисовка интерфейса редактора уровней
         self.screen.fill(WHITE)
 
         title = self.font.render("РЕДАКТОР УРОВНЕЙ", True, BLUE)
@@ -176,7 +169,7 @@ class LevelEditor:
         # Подсветка тупиков
         self.draw_deadlock_overlay()
 
-        # ПРАВАЯ ПАНЕЛЬ
+        # правая панель
         panel_x = SCREEN_WIDTH - TOOLBAR_WIDTH - 5
         panel_w = TOOLBAR_WIDTH
 
@@ -185,7 +178,7 @@ class LevelEditor:
 
         y = 45
 
-        # ИНСТРУМЕНТЫ (компактно)
+        # инструменты
         tools_title = self.small_font.render("ИНСТРУМЕНТЫ:", True, BLACK)
         self.screen.blit(tools_title, (panel_x + 10, y))
         y += 18
@@ -204,7 +197,7 @@ class LevelEditor:
 
         y += 5
 
-        # СТАТИСТИКА
+        # статистика
         self.update_stats()
         stat_text = f"Ящ:{self.box_count} Цел:{self.goal_count} Игр:{self.player_count}"
         self.screen.blit(self.small_font.render(stat_text, True, BLACK), (panel_x + 10, y))
@@ -216,7 +209,7 @@ class LevelEditor:
             self.screen.blit(self.small_font.render("НЕВЕРНО", True, RED), (panel_x + 10, y))
         y += 20
 
-        # КНОПКА ПРОВЕРКИ
+        # кнопка проверки
         btn_check = pygame.Rect(panel_x + 10, y, panel_w - 20, 28)
         pygame.draw.rect(self.screen, ORANGE, btn_check)
         pygame.draw.rect(self.screen, BLACK, btn_check, 1)
@@ -233,7 +226,7 @@ class LevelEditor:
 
         y += 5
 
-        # СПИСОК УРОВНЕЙ (компактно)
+        # список уровней
         list_title = self.small_font.render("МОИ УРОВНИ:", True, BLACK)
         self.screen.blit(list_title, (panel_x + 10, y))
         y += 18
@@ -250,7 +243,7 @@ class LevelEditor:
 
         y += 10
 
-        # КНОПКИ ДЕЙСТВИЙ
+        # кнопки действий
         btn_clear = pygame.Rect(panel_x + 10, y, panel_w - 20, 28)
         btn_save = pygame.Rect(panel_x + 10, y + 32, panel_w - 20, 28)
         btn_load = pygame.Rect(panel_x + 10, y + 64, panel_w - 20, 28)
@@ -282,9 +275,7 @@ class LevelEditor:
             self.screen.blit(status_surface, (panel_x + 10, SCREEN_HEIGHT - 25))
             self.status_timer -= 1
 
-    def get_filename_dialog(self):
-        SCREEN_WIDTH = 800
-        SCREEN_HEIGHT = 600
+    def get_filename_dialog(self): # создание диалогового окна для ввода имени файла при сохранении уровня
         dialog_rect = pygame.Rect(SCREEN_WIDTH // 2 - 150, SCREEN_HEIGHT // 2 - 80, 300, 160)
         pygame.draw.rect(self.screen, WHITE, dialog_rect)
         pygame.draw.rect(self.screen, BLACK, dialog_rect, 2)
@@ -312,17 +303,12 @@ class LevelEditor:
 
         return ok_btn, cancel_btn
 
-    def save_level(self, name):
+    def save_level(self, name): # сохранение текущего уровня в файл с проверкой безопасности с обрезкой пустых клеток
         safe_name = os.path.basename(name)
         if not safe_name or safe_name.startswith('.'):
             self.status_message = "Недопустимое имя!"
             self.status_timer = 60
             return False
-
-        TILE_SIZE = 35
-        SCREEN_WIDTH = 800
-        SCREEN_HEIGHT = 600
-        TOOLBAR_WIDTH = 200
 
         # Обрезаем пустые строки снизу
         while self.map_height > 0 and all(cell == ' ' for cell in self.level[-1]):
@@ -360,7 +346,7 @@ class LevelEditor:
         self.load_saved_levels_list()
         return True
 
-    def load_level(self, filename):
+    def load_level(self, filename): # загрузка выбранного пользовательского уровня для редактирования
         safe_name = os.path.basename(filename)
         filepath = os.path.join("levels", safe_name)
         if not os.path.exists(filepath):
@@ -388,7 +374,7 @@ class LevelEditor:
         self.status_timer = 60
         return True
 
-    def clear_level(self):
+    def clear_level(self): # очистка всего поля редактора
         self.level = [[' ' for _ in range(self.map_width)] for _ in range(self.map_height)]
         self.is_solvable = None
         self.solvability_message = ""
@@ -396,7 +382,7 @@ class LevelEditor:
         self.status_message = "Поле очищено"
         self.status_timer = 60
 
-    def run(self):
+    def run(self): # главный цикл редактора - обрабатывает ввод, рисование, диалоги и выход в меню
         running = True
 
         while running:

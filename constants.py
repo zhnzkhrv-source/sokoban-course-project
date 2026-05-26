@@ -1,17 +1,16 @@
-# constants.py
-# Общие константы для всего проекта
-
-import pygame
+# Общие константы
 
 # Размеры окна
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
+WINDOW_WIDTH = 800
+WINDOW_HEIGHT = 600
 
 # Размеры редактора
 EDITOR_WIDTH = 1100
 EDITOR_HEIGHT = 750
 TOOLBAR_WIDTH = 280
-TILE_SIZE = 50  # <--- ДОБАВЬ ЭТУ СТРОКУ
+TILE_SIZE = 50
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
 
 # Тайлы (символы для уровней)
 WALL = '#'
@@ -22,11 +21,11 @@ GOAL = '.'
 BOX_ON_GOAL = '*'
 PLAYER_ON_GOAL = '+'
 
-# Цвета (пастельные)
-BG_COLOR = (255, 240, 245)        # Lavender Blush
-BTN_COLOR = (255, 182, 193)       # Light Pink
-TEXT_COLOR = (139, 0, 139)        # Dark Magenta
-BORDER_COLOR = (219, 112, 147)    # Pale Violet Red
+# Цвета меню
+BG_COLOR = (255, 240, 245)
+BTN_COLOR = (255, 182, 193)
+TEXT_COLOR = (139, 0, 139)
+BORDER_COLOR = (219, 112, 147)
 
 # Дополнительные цвета
 WHITE = (255, 250, 240)
@@ -52,9 +51,9 @@ MIN_TILE_SIZE = 48
 MAX_TILE_SIZE = 80
 DEFAULT_TILE_SIZE = 64
 
-# Цвета для всплывающих окон (Deep Noir)
-WIN_BG = (45, 27, 34)        # #2D1B22
-WIN_BORDER = (99, 22, 33)     # #631621
-WIN_TITLE = (255, 182, 193)   # #FFB6C1
-WIN_TEXT = (255, 255, 255)    # #FFFFFF
-WIN_HINT = (150, 150, 150)    # светло-серый
+# Цвета для всплывающих окон
+WIN_BG = (45, 27, 34)
+WIN_BORDER = (99, 22, 33)
+WIN_TITLE = (255, 182, 193)
+WIN_TEXT = (255, 255, 255)
+WIN_HINT = (150, 150, 150)
