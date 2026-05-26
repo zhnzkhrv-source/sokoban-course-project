@@ -51,3 +51,10 @@ CAT_HARD = RED
 MIN_TILE_SIZE = 48
 MAX_TILE_SIZE = 80
 DEFAULT_TILE_SIZE = 64
+
+# Цвета для всплывающих окон (Deep Noir)
+WIN_BG = (45, 27, 34)        # #2D1B22
+WIN_BORDER = (99, 22, 33)     # #631621
+WIN_TITLE = (255, 182, 193)   # #FFB6C1
+WIN_TEXT = (255, 255, 255)    # #FFFFFF
+WIN_HINT = (150, 150, 150)    # светло-серый

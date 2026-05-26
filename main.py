@@ -9,7 +9,7 @@ from constants import *
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
 
-def extract_level_number(name): # извлекает номер уровня из имени файла для сортировки
+def extract_level_number(name): # извлечение номера уровня из имени файла для сортировки
     numbers = re.findall(r'\d+', name)
     return int(numbers[0]) if numbers else 999
 
@@ -199,7 +199,7 @@ class GameManager: # инициализация главного менедже�
             {"text": "ВЫХОД", "y": 530, "action": "exit"},
         ]
 
-        hint = self.small_font.render("F11 - полноэкранный режим", True, TEXT_COLOR)
+        hint = self.small_font.render("F11/F — полный экран", True, TEXT_COLOR)
         self.screen.blit(hint, (self.screen_width - hint.get_width() - 20, self.screen_height - 30))
 
         for item in menu_items:
@@ -421,15 +421,65 @@ class GameManager: # инициализация главного менедже�
         level_start_time = time.time()
 
         running = True
+
         while running:
             dt = self.clock.get_time() / 1000.0
             game.update(dt)
+
+            # проверка победы после анимации
+            if game.check_win() and not win_shown and not level_completed:
+                win_shown = True
+                win_time = pygame.time.get_ticks()
+
+                level_name = f"Level{current_level + 1}" if category == "standard" else f"Уровень {current_level + 1}"
+                stats = game.get_stats()
+                elapsed = int(time.time() - level_start_time)
+                save_stats(level_name, stats['moves'], stats['pushes'], elapsed, category)
+
+                if category == "custom":
+                    progress_file = "saves/custom_progress.json"
+                    progress = {}
+                    if os.path.exists(progress_file):
+                        try:
+                            with open(progress_file, "r") as f:
+                                progress = json.load(f)
+                        except (json.JSONDecodeError, OSError) as e:
+                            print(f"Ошибка загрузки прогресса: {e}")
+                    progress[level_name] = True
+                    with open(progress_file, "w") as f:
+                        json.dump(progress, f, indent=2)
+
+                # Табличка победы
+                win_rect = pygame.Rect(
+                    self.screen_width // 2 - 200,
+                    self.screen_height // 2 - 100,
+                    400,
+                    200
+                )
+
+                pygame.draw.rect(self.screen, WIN_BG, win_rect)
+                pygame.draw.rect(self.screen, WIN_BORDER, win_rect, 4)
+                pygame.draw.rect(self.screen, WIN_BG, win_rect.inflate(-8, -8))
+
+                win_text = self.font.render("ПОБЕДА!", True, WIN_TITLE)
+                self.screen.blit(win_text, (win_rect.centerx - win_text.get_width() // 2, win_rect.y + 30))
+
+                moves_text = self.small_font.render(f"Ходов: {stats['moves']}", True, WIN_TEXT)
+                pushes_text = self.small_font.render(f"Толчков: {stats['pushes']}", True, WIN_TEXT)
+                time_text = self.small_font.render(f"Время: {format_time(elapsed)}", True, WIN_TEXT)
+                self.screen.blit(moves_text, (win_rect.x + 50, win_rect.y + 80))
+                self.screen.blit(pushes_text, (win_rect.x + 50, win_rect.y + 110))
+                self.screen.blit(time_text, (win_rect.x + 50, win_rect.y + 140))
+
+                continue_text = self.small_font.render("Нажми любую клавишу...", True, WIN_HINT)
+                self.screen.blit(continue_text, (win_rect.centerx - continue_text.get_width() // 2, win_rect.y + 170))
+
+                pygame.display.flip()
 
             self.screen.fill(BG_COLOR)
 
             if not level_completed:
                 game.draw(self.screen, self.font, self.screen_width, self.screen_height)
-
                 level_num = current_level + 1
                 if category == "standard":
                     level_display = f"Уровень {level_num}"
@@ -448,27 +498,27 @@ class GameManager: # инициализация главного менедже�
                 self.screen.blit(info, (self.screen_width - info.get_width() - 10, 10))
 
                 controls = self.small_font.render(
-                    "Стрелки | U - отмена | R - рестарт | H - подсказка | F11 - полноэкранный | ESC - меню", True,
+                    "Стрелки | U - отмена | R - рестарт | H - подсказка | F11/F - полноэкранный | ESC - меню", True,
                     TEXT_COLOR)
                 self.screen.blit(controls, (10, self.screen_height - 30))
 
                 if hint_status == "found" and hint_move:
                     arrow = ""
                     if hint_move == (0, -1):
-                        arrow = "↑ вверх"
+                        arrow = "вверх"
                     elif hint_move == (0, 1):
-                        arrow = "↓ вниз"
+                        arrow = "вниз"
                     elif hint_move == (-1, 0):
-                        arrow = "← влево"
+                        arrow = "влево"
                     elif hint_move == (1, 0):
-                        arrow = "→ вправо"
+                        arrow = "вправо"
                     hint_text = self.small_font.render(f"Подсказка: {arrow}", True, GREEN)
                     self.screen.blit(hint_text,
-                                     (self.screen_width - hint_text.get_width() - 10, self.screen_height - 30))
+                                     (self.screen_width - hint_text.get_width() - 10, self.screen_height - 60))
                 elif hint_status == "not_found":
                     hint_text = self.small_font.render("Подсказка: решения нет (слишком сложный уровень)", True, RED)
                     self.screen.blit(hint_text,
-                                     (self.screen_width - hint_text.get_width() - 10, self.screen_height - 30))
+                                     (self.screen_width - hint_text.get_width() - 10, self.screen_height - 60))
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -552,17 +602,17 @@ class GameManager: # инициализация главного менедже�
                             pygame.draw.rect(self.screen, BORDER_COLOR, win_rect, 4)
                             pygame.draw.rect(self.screen, BTN_COLOR, win_rect.inflate(-8, -8))
 
-                            win_text = self.font.render("ПОБЕДА!", True, TEXT_COLOR)
+                            win_text = self.font.render("ПОБЕДА!", True, WIN_TITLE)
                             self.screen.blit(win_text, (win_rect.centerx - win_text.get_width() // 2, win_rect.y + 30))
 
-                            moves_text = self.small_font.render(f"Ходов: {stats['moves']}", True, TEXT_COLOR)
+                            moves_text = self.small_font.render(f"Ходов: {stats['moves']}", True, WIN_TEXT)
                             pushes_text = self.small_font.render(f"Толчков: {stats['pushes']}", True, TEXT_COLOR)
                             time_text = self.small_font.render(f"Время: {format_time(elapsed)}", True, TEXT_COLOR)
                             self.screen.blit(moves_text, (win_rect.x + 50, win_rect.y + 80))
                             self.screen.blit(pushes_text, (win_rect.x + 50, win_rect.y + 110))
                             self.screen.blit(time_text, (win_rect.x + 50, win_rect.y + 140))
 
-                            continue_text = self.small_font.render("Нажми любую клавишу...", True, GRAY)
+                            continue_text = self.small_font.render("Нажми любую клавишу...", True, WIN_HINT)
                             self.screen.blit(continue_text,
                                              (win_rect.centerx - continue_text.get_width() // 2, win_rect.y + 170))
 
@@ -580,19 +630,19 @@ class GameManager: # инициализация главного менедже�
                             200
                         )
 
-                        pygame.draw.rect(self.screen, BG_COLOR, complete_rect)
-                        pygame.draw.rect(self.screen, BORDER_COLOR, complete_rect, 4)
-                        pygame.draw.rect(self.screen, CAT_EASY, complete_rect.inflate(-8, -8))
+                        pygame.draw.rect(self.screen, WIN_BG, complete_rect)
+                        pygame.draw.rect(self.screen, WIN_BORDER, complete_rect, 4)
+                        pygame.draw.rect(self.screen, WIN_BG, complete_rect.inflate(-8, -8))
 
-                        complete_text = self.font.render("ВСЕ УРОВНИ ПРОЙДЕНЫ!", True, TEXT_COLOR)
+                        complete_text = self.font.render("ВСЕ УРОВНИ ПРОЙДЕНЫ!", True, WIN_TITLE)
                         self.screen.blit(complete_text,
                                          (complete_rect.centerx - complete_text.get_width() // 2, complete_rect.y + 50))
 
-                        congrats_text = self.small_font.render("Поздравляем! Вы прошли все уровни.", True, TEXT_COLOR)
+                        congrats_text = self.small_font.render("Поздравляем! Вы прошли все уровни.", True, WIN_TEXT)
                         self.screen.blit(congrats_text, (complete_rect.centerx - congrats_text.get_width() // 2,
                                                          complete_rect.y + 110))
 
-                        exit_text = self.small_font.render("Нажмите любую клавишу для выхода...", True, GRAY)
+                        exit_text = self.small_font.render("Нажмите любую клавишу для выхода...", True, WIN_HINT)
                         self.screen.blit(exit_text,
                                          (complete_rect.centerx - exit_text.get_width() // 2, complete_rect.y + 150))
 
