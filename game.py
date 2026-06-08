@@ -130,7 +130,7 @@ class SokobanGame:
             return True
         return False
 
-    def try_move(self, dx: int, dy: int) -> bool: # обрабатывает попытку перемещения игрока, в т.ч. толкание ящиков, и запускает анимацию
+    def try_move(self, dx: int, dy: int) -> bool:
         if not self.player_pos:
             return False
 
@@ -208,7 +208,7 @@ class SokobanGame:
                 self.anim_box = None
                 self.anim_progress = 1.0
 
-    def check_win(self) -> bool: # проверка - все ли ящики находятся на целях (победа)
+    def check_win(self) -> bool:
         return all(box in self.goals for box in self.boxes)
 
     def get_stats(self) -> dict: # возвращает словарь с текущей статистикой игры (кол-во ходов и толчков)
@@ -342,7 +342,7 @@ class SokobanGame:
     def update(self, dt): # обновление состояния анимации игрока и ящика, передавая ей время, прошедшее с последнего кадра
         self.update_animation(dt)
 
-    def get_hint(self) -> Optional[Tuple[int, int]]: # поиск подсказки с помощью bfs
+    def get_hint(self) -> Optional[Tuple[int, int]]:
         if len(self.boxes) > 3:
             return None
 
