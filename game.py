@@ -6,7 +6,7 @@ import os
 from constants import *
 
 
-@dataclass(frozen=True) # неизменяемое состояние игры для системы отмены ходов и bfs-поиска решения
+@dataclass(frozen=True)
 class GameState:
     player: Tuple[int, int]
     boxes: frozenset
@@ -15,7 +15,7 @@ class GameState:
 
 
 class SokobanGame:
-    def __init__(self, level_map): # инициализация основного игрового объекта
+    def __init__(self, level_map):
         self.walls = set()
         self.goals = set()
         self.width = 0
@@ -38,12 +38,12 @@ class SokobanGame:
         self.anim_box_start = None
         self.anim_box_target = None
         self.anim_box = None
-        self.pending_move = None  # (dx, dy) для отложенного хода
+        self.pending_move = None
 
         self.load_level(level_map)
         self.save_state()
 
-    def load_images(self): # загружает текстурные изображения из папки
+    def load_images(self):
         images = {}
         img_dir = "images"
         if not os.path.exists(img_dir):
@@ -58,7 +58,7 @@ class SokobanGame:
                     print(f"Ошибка загрузки {tex}.png: {e}")
         return images
 
-    def get_scaled_texture(self, name, target_size): # возвращает текстуру, масштабированную под нужный размер клетки
+    def get_scaled_texture(self, name, target_size):
         if name not in self.images:
             return None
         key = (name, target_size)
@@ -68,7 +68,7 @@ class SokobanGame:
             )
         return self.texture_cache.get(key)
 
-    def load_level(self, level_map): # загрузка карты уровня из массива строк в игровые структуры данных
+    def load_level(self, level_map):
         self.walls.clear()
         self.goals.clear()
         self.boxes.clear()
@@ -101,10 +101,10 @@ class SokobanGame:
         self.anim_box = None
         self.pending_move = None
 
-    def get_current_state(self) -> GameState: # возвращает неизменяемый снимок текущего состояния игры для сохранения в истории или bfs
+    def get_current_state(self) -> GameState:
         return GameState(self.player_pos, frozenset(self.boxes), self.moves, self.pushes)
 
-    def restore_state(self, state: GameState): # восстанавливает состояние игры из объекта GameState (используется для отмены хода).
+    def restore_state(self, state: GameState):
         self.player_pos = state.player
         self.boxes = set(state.boxes)
         self.moves = state.moves
@@ -117,13 +117,13 @@ class SokobanGame:
         self.anim_box = None
         self.pending_move = None
 
-    def save_state(self): # сохраняет текущее состояние игры в историю для последующей отмены хода
+    def save_state(self):
         state = self.get_current_state()
         self.history = self.history[:self.history_index + 1]
         self.history.append(state)
         self.history_index += 1
 
-    def undo(self) -> bool: # отменяет последний ход
+    def undo(self) -> bool:
         if self.history_index > 0 and self.anim_progress >= 1.0:
             self.history_index -= 1
             self.restore_state(self.history[self.history_index])
@@ -146,7 +146,6 @@ class SokobanGame:
         if (new_x, new_y) in self.walls:
             return False
 
-        # Движение с ящиком
         if (new_x, new_y) in self.boxes:
             box_x, box_y = new_x + dx, new_y + dy
 
@@ -156,7 +155,6 @@ class SokobanGame:
             if (box_x, box_y) in self.walls or (box_x, box_y) in self.boxes:
                 return False
 
-            # Запоминаем отложенный ход
             self.pending_move = (dx, dy, new_x, new_y, box_x, box_y)
             self.anim_progress = 0.0
             self.anim_start = (x, y)
@@ -166,7 +164,6 @@ class SokobanGame:
             self.anim_box = (new_x, new_y)
             return True
 
-        # Обычное движение
         elif (new_x, new_y) not in self.walls and (new_x, new_y) not in self.boxes:
             self.pending_move = (dx, dy, new_x, new_y, None, None)
             self.anim_progress = 0.0
@@ -179,20 +176,17 @@ class SokobanGame:
 
         return False
 
-    def update_animation(self, dt): # обновляет анимацию игрока и ящика, фиксирует состояние после завершения движения
+    def update_animation(self, dt):
         if self.anim_progress < 1.0:
             self.anim_progress += dt * 12.0
             if self.anim_progress >= 1.0:
-                # фиксация реального состояния после завершения анимации
                 self.player_pos = self.anim_target
                 if self.anim_box_start is not None and self.anim_box_target is not None:
                     self.boxes.remove(self.anim_box_start)
                     self.boxes.add(self.anim_box_target)
 
-                # сохраняем состояние после завершения анимации
                 self.save_state()
 
-                # обновляем счётчики
                 if self.pending_move:
                     dx, dy, new_x, new_y, box_x, box_y = self.pending_move
                     self.moves += 1
@@ -200,7 +194,6 @@ class SokobanGame:
                         self.pushes += 1
                     self.pending_move = None
 
-                # сбрасываем анимацию
                 self.anim_start = None
                 self.anim_target = None
                 self.anim_box_start = None
@@ -211,10 +204,10 @@ class SokobanGame:
     def check_win(self) -> bool:
         return all(box in self.goals for box in self.boxes)
 
-    def get_stats(self) -> dict: # возвращает словарь с текущей статистикой игры (кол-во ходов и толчков)
+    def get_stats(self) -> dict:
         return {'moves': self.moves, 'pushes': self.pushes}
 
-    def calculate_tile_size(self, screen_width, screen_height, ui_top=70, ui_bottom=90): # вычисление оптимального размера клетки в пикселях в зависимости от размеров уровня и экрана
+    def calculate_tile_size(self, screen_width, screen_height, ui_top=70, ui_bottom=90):
         available_height = screen_height - ui_top - ui_bottom
         available_width = screen_width
 
@@ -226,14 +219,14 @@ class SokobanGame:
         tile_size = min(tile_by_width, tile_by_height)
         return max(MIN_TILE_SIZE, min(tile_size, MAX_TILE_SIZE))
 
-    def get_animated_pos(self, start, target, progress): # вычисление промежуточной позиции игрока и ящика во время анимации движения (для анимации)
+    def get_animated_pos(self, start, target, progress):
         if start is None or target is None:
             return None
         x = start[0] + (target[0] - start[0]) * progress
         y = start[1] + (target[1] - start[1]) * progress
         return (x, y)
 
-    def draw(self, screen, font, screen_width, screen_height): # отрисовка игрового поля (с поддержкой анимации и текстур)
+    def draw(self, screen, font, screen_width, screen_height):
         if self.width == 0 or self.height == 0:
             return
 
@@ -241,7 +234,6 @@ class SokobanGame:
         offset_y = 70
         offset_x = (screen_width - (self.width * tile_size)) // 2
 
-        # Позиции с учётом анимации
         if self.anim_progress < 1.0 and self.anim_start is not None:
             player_draw_pos = self.get_animated_pos(
                 self.anim_start, self.anim_target, self.anim_progress
@@ -282,7 +274,6 @@ class SokobanGame:
                     else:
                         pygame.draw.circle(screen, RED, rect.center, tile_size // 4)
 
-                # Ящик с учётом анимации
                 if (x, y) in self.boxes:
                     if self.anim_box is not None and (x, y) == self.anim_box and self.anim_progress < 1.0:
                         anim_box_pos = self.get_animated_pos(
@@ -317,7 +308,6 @@ class SokobanGame:
                         pygame.draw.rect(screen, BROWN, rect)
                         pygame.draw.rect(screen, BLACK, rect, 2)
 
-        # Игрок (рисуется поверх всего)
         if player_draw_pos:
             px = player_draw_pos[0] - int(player_draw_pos[0])
             py = player_draw_pos[1] - int(player_draw_pos[1])
@@ -339,7 +329,7 @@ class SokobanGame:
             else:
                 pygame.draw.circle(screen, BLUE, player_rect.center, tile_size // 3)
 
-    def update(self, dt): # обновление состояния анимации игрока и ящика, передавая ей время, прошедшее с последнего кадра
+    def update(self, dt):
         self.update_animation(dt)
 
     def get_hint(self) -> Optional[Tuple[int, int]]:
@@ -376,7 +366,7 @@ class SokobanGame:
 
         return None
 
-    def _apply_move(self, state: GameState, dx: int, dy: int) -> Optional[GameState]: # применяет ход к заданному состоянию (без изменения текущего) и возвращает новое состояние для bfs
+    def _apply_move(self, state: GameState, dx: int, dy: int) -> Optional[GameState]:
         player = state.player
         boxes = set(state.boxes)
         new_x, new_y = player[0] + dx, player[1] + dy
