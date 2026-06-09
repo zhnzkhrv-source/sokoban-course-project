@@ -55,16 +55,16 @@ ESC — выход из редактора
 ## Структура проекта
 
 sokoban-course-project/
-─ main.py
-─ game.py
-─ editor.py
-─ constants.py
-─ levels.txt
-─ requirements.txt
-─ README.md
-─ levels/
-─ saves/
-─ images/
+- main.py
+- game.py
+- editor.py
+- constants.py
+- levels.txt
+- requirements.txt
+- README.md
+- levels/
+- saves/
+- images/
 
 ## Зависимости
 
