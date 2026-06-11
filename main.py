@@ -150,7 +150,7 @@ class GameManager:
         self.screen_height = WINDOW_HEIGHT
         pygame.display.set_caption("Sokoban - Курсовая работа")
 
-        self.bg_original = pygame.image.load("images/background.png").convert()  # zzz
+        self.bg_original = pygame.image.load("images/background.png").convert()
 
         screen_size = self.screen.get_size()
         self.bg_scaled = pygame.transform.scale(self.bg_original, screen_size)
@@ -192,8 +192,21 @@ class GameManager:
 
     def show_menu(self):
         self.screen.blit(self.bg_scaled, (0, 0))
+        font_path = os.path.join("images", "main_font.ttf")
 
-        title = self.title_font.render("SOKOBAN", True, TEXT_COLOR)
+        try:
+            self.title_font = pygame.font.Font(font_path, 72)
+        except FileNotFoundError:
+            print("Шрифт не найден, включен резервный системный шрифт")
+            self.title_font = pygame.font.SysFont("Arial", 72)
+
+        try:
+            button_font = pygame.font.Font(font_path, 15)
+        except FileNotFoundError:
+            button_font = pygame.font.SysFont("Arial", 14)
+
+
+        title = self.title_font.render("SOKOBAN", True, (78, 24, 69))
         self.screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 50))
 
         menu_items = [
@@ -205,16 +218,28 @@ class GameManager:
             {"text": "ВЫХОД", "y": 530, "action": "exit"},
         ]
 
-        hint = self.small_font.render("F11/F — полный экран", True, TEXT_COLOR)
+        # Исправленный вариант:
+        hint = self.small_font.render("F11/F - полный экран", True, TEXT_COLOR)
         self.screen.blit(hint, (self.screen_width - hint.get_width() - 20, self.screen_height - 30))
 
         for item in menu_items:
             btn_rect = pygame.Rect(self.screen_width // 2 - 150, item["y"], 300, 50)
-            color = BTN_COLOR if item["action"] != "exit" else (200, 100, 100)
+
+            if item["action"] == "exit":
+                color = (199, 84, 96)
+                text_color = (255, 255, 255)
+            else:
+                color = BTN_COLOR
+                text_color = (78, 24, 69)
+
             pygame.draw.rect(self.screen, color, btn_rect)
             pygame.draw.rect(self.screen, BORDER_COLOR, btn_rect, 3)
-            text = self.font.render(item["text"], True, TEXT_COLOR)
-            self.screen.blit(text, (btn_rect.centerx - text.get_width() // 2, btn_rect.centery - 10))
+
+            text = button_font.render(item["text"], True, text_color)
+
+            text_rect = text.get_rect(center=btn_rect.center)
+            self.screen.blit(text, text_rect)
+
             self.button_rects = getattr(self, 'button_rects', {})
             self.button_rects[item["action"]] = btn_rect
 

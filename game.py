@@ -31,7 +31,6 @@ class SokobanGame:
         self.images = self.load_images()
         self.texture_cache = {}
 
-        # Анимация
         self.anim_progress = 1.0
         self.anim_start = None
         self.anim_target = None
